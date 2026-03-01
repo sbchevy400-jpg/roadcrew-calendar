@@ -24,7 +24,7 @@ getDocs,
 enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* FIREBASE */
+/* FIREBASE CONFIG */
 const firebaseConfig = {
 apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
 authDomain:"roadcrew-work-calendar.firebaseapp.com",
@@ -41,6 +41,19 @@ enableIndexedDbPersistence(db).catch(()=>{});
 
 const workRef = collection(db,"work");
 
+/* GET PAGE ELEMENTS (FIXED SAVE ISSUE) */
+const date = document.getElementById("date");
+const worker = document.getElementById("worker");
+const hours = document.getElementById("hours");
+const location = document.getElementById("location");
+const workdone = document.getElementById("workdone");
+const fema = document.getElementById("fema");
+
+const entries = document.getElementById("entries");
+const calendar = document.getElementById("calendar");
+const totals = document.getElementById("totals");
+const installBtn = document.getElementById("installBtn");
+
 /* ADD ENTRY */
 window.addEntry = async ()=>{
 await addDoc(workRef,{
@@ -53,24 +66,24 @@ fema:fema.value
 });
 };
 
-/* DELETE */
+/* DELETE ENTRY */
 window.deleteEntry = async(id)=>{
 if(confirm("Delete entry?")){
 await deleteDoc(doc(db,"work",id));
 }
 };
 
-/* EDIT */
+/* EDIT ENTRY */
 window.editEntry = async(id,data)=>{
-const hrs = prompt("Hours",data.hours);
-if(hrs===null)return;
+const hrs = prompt("Edit hours",data.hours);
+if(hrs===null) return;
 
 await updateDoc(doc(db,"work",id),{
 hours:Number(hrs)
 });
 };
 
-/* LIVE DATA */
+/* LIVE DATA LISTENER */
 const q=query(workRef,orderBy("date","desc"));
 
 onSnapshot(q,(snapshot)=>{
@@ -90,10 +103,12 @@ let femaTotals={};
 let totalFema=0;
 
 snapshot.forEach(d=>{
+
 const data=d.data();
 const id=d.id;
 const hrs=Number(data.hours||0);
 
+/* totals */
 if(equipTotals[data.worker]!=undefined)
 equipTotals[data.worker]+=hrs;
 
@@ -102,7 +117,7 @@ totalFema+=hrs;
 femaTotals[data.fema]=(femaTotals[data.fema]||0)+hrs;
 }
 
-/* ENTRY CARD */
+/* entry card */
 entries.innerHTML+=`
 <div class="card">
 <b>${data.worker}</b><br>
@@ -115,25 +130,29 @@ FEMA: ${data.fema||"-"}<br><br>
 <button onclick='deleteEntry("${id}")'>Delete</button>
 </div>`;
 
-/* CALENDAR */
+/* calendar view */
 calendar.innerHTML+=`
 <div class="cal">
 <b>${data.date}</b><br>
-${data.worker}<br>${hrs} hrs
+${data.worker}<br>
+${hrs} hrs
 </div>`;
 });
 
-/* TOTAL DISPLAY */
+/* totals display */
 let femaHTML="";
-for(const n in femaTotals)
+for(const n in femaTotals){
 femaHTML+=`${n}: ${femaTotals[n]} hrs<br>`;
+}
 
 totals.innerHTML=`
 <h3>Equipment Totals</h3>
 ${Object.entries(equipTotals).map(e=>`${e[0]}: ${e[1]} hrs`).join("<br>")}
 <br><br>
+
 <h3>FEMA Totals</h3>
-Total FEMA Hours: ${totalFema}<br><br>
+Total FEMA Hours: ${totalFema} hrs<br><br>
+
 <h3>FEMA Breakdown</h3>
 ${femaHTML||"None"}
 `;
@@ -143,7 +162,7 @@ ${femaHTML||"None"}
 /* MONTHLY FEMA REPORT */
 window.monthlyReport=()=>{
 const m = prompt("Enter month (YYYY-MM)");
-if(!m)return;
+if(!m) return;
 
 const cards=document.querySelectorAll(".card");
 let report="FEMA Monthly Report\n\n";
@@ -182,11 +201,13 @@ const data=JSON.parse(text);
 for(const item of data){
 await addDoc(workRef,item);
 }
+
 alert("Restore complete");
 };
 
-/* INSTALL AS APP */
+/* INSTALL APP */
 let deferredPrompt;
+
 window.addEventListener("beforeinstallprompt",(e)=>{
 e.preventDefault();
 deferredPrompt=e;
