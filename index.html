@@ -3,51 +3,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <title>Roadcrew Work Calendar</title>
 
 <style>
 body{
-  font-family:Arial;
-  max-width:900px;
-  margin:auto;
-  padding:15px;
-  font-size:22px;
+font-family:Arial;
+max-width:900px;
+margin:auto;
+padding:15px;
+font-size:22px;
 }
 
 input,select,button{
-  width:100%;
-  padding:18px;
-  margin:8px 0;
-  font-size:22px;
+width:100%;
+padding:18px;
+margin:8px 0;
+font-size:22px;
 }
 
 .calendar{
-  display:grid;
-  grid-template-columns:repeat(7,1fr);
-  gap:6px;
-  margin-top:15px;
+display:grid;
+grid-template-columns:repeat(7,1fr);
+gap:6px;
+margin-top:15px;
 }
 
 .day{
-  border:2px solid #ccc;
-  min-height:90px;
-  padding:6px;
-  border-radius:8px;
-  cursor:pointer;
+border:2px solid #ccc;
+min-height:90px;
+padding:6px;
+border-radius:8px;
+cursor:pointer;
 }
 
-.selected{ background:#cfe8ff; }
+.selected{background:#cfe8ff;}
 
 .entry{
-  border-top:1px solid #aaa;
-  margin-top:5px;
-  padding-top:5px;
-  font-size:18px;
-}
-
-@media print{
-  button, select, input { display:none; }
+border-top:1px solid #aaa;
+margin-top:5px;
+padding-top:5px;
+font-size:18px;
 }
 </style>
 </head>
@@ -62,21 +57,21 @@ import { initializeApp } from
 "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 import {
-  getFirestore,
-  collection,
-  addDoc,
-  onSnapshot,
-  deleteDoc,
-  doc
+getFirestore,
+collection,
+addDoc,
+onSnapshot,
+deleteDoc,
+doc
 } from
 "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ================= FIREBASE ================= */
 
 const firebaseConfig={
-  apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-  authDomain:"roadcrew-work-calendar.firebaseapp.com",
-  projectId:"roadcrew-work-calendar"
+apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+authDomain:"roadcrew-work-calendar.firebaseapp.com",
+projectId:"roadcrew-work-calendar"
 };
 
 const app=initializeApp(firebaseConfig);
@@ -118,16 +113,14 @@ let selectedDate=null;
 function renderLogin(){
 appDiv.innerHTML=`
 <h1>Roadcrew Work Calendar</h1>
-
-<input id="loginUser" placeholder="Username">
-<input id="loginPass" type="password" placeholder="Password">
-
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
 <button id="loginBtn">Login</button>
 `;
 
 loginBtn.onclick=()=>{
-if(USERS[loginUser.value]===loginPass.value){
-localStorage.setItem("user",loginUser.value);
+if(USERS[u.value]===p.value){
+localStorage.setItem("user",u.value);
 location.reload();
 }else alert("Invalid login");
 };
@@ -173,7 +166,6 @@ function renderApp(){
 
 appDiv.innerHTML=`
 <h1>Roadcrew Work Calendar</h1>
-
 <button id="logoutBtn">Logout</button>
 
 ${buildCalendar()}
@@ -203,7 +195,7 @@ ${[...Array(12)].map((_,i)=>
 
 <input id="reportYear" type="number" value="${new Date().getFullYear()}">
 
-<button id="printBtn">Print Selected Month</button>
+<button id="printBtn">Print FEMA Monthly Report</button>
 
 <div id="dayEntries"></div>
 `;
@@ -222,14 +214,14 @@ renderApp();
 renderSelectedEntries();
 }
 
-/* ================= SAVE ================= */
+/* ================= SAVE ENTRY ================= */
 
 async function addEntry(){
 
 const entry={
 date:dateInput.value,
 worker:workerInput.value,
-hours:hoursInput.value,
+hours:Number(hoursInput.value),
 location:locationInput.value,
 work:workInput.value,
 fema:femaInput.value
@@ -243,7 +235,7 @@ return;
 await addDoc(collection(db,"entries"),entry);
 }
 
-/* ================= PRINT REPORT ================= */
+/* ================= FEMA REPORT ================= */
 
 function printMonthlyReport(){
 
@@ -255,22 +247,43 @@ const d=new Date(e.date);
 return d.getMonth()===month && d.getFullYear()===year;
 });
 
-let html=`<h1>Roadcrew Monthly Report</h1>`;
-html+=`<h2>${new Date(year,month).toLocaleString('default',{month:'long'})} ${year}</h2>`;
-
-filtered.sort((a,b)=>new Date(a.date)-new Date(b.date));
+let dailyTotals={};
+let equipmentTotals={};
+let femaTotal=0;
+let grandTotal=0;
 
 filtered.forEach(e=>{
-html+=`
-<p>
-<b>${e.date}</b><br>
-${e.worker} — ${e.hours} hrs<br>
-${e.location}<br>
-${e.work}<br>
-FEMA: ${e.fema||"-"}
-</p>
-<hr>`;
+
+grandTotal+=e.hours;
+
+if(e.fema) femaTotal+=e.hours;
+
+dailyTotals[e.date]=(dailyTotals[e.date]||0)+e.hours;
+
+equipmentTotals[e.worker]=(equipmentTotals[e.worker]||0)+e.hours;
 });
+
+let html=`
+<h1>Roadcrew FEMA Monthly Report</h1>
+<h2>${new Date(year,month).toLocaleString('default',{month:'long'})} ${year}</h2>
+`;
+
+Object.keys(dailyTotals).sort().forEach(day=>{
+html+=`<p><b>${day}</b> — Total Hours: ${dailyTotals[day]}</p>`;
+});
+
+html+=`<hr><h2>Equipment Totals</h2>`;
+
+Object.keys(equipmentTotals).forEach(eq=>{
+html+=`<p>${eq}: ${equipmentTotals[eq]} hrs</p>`;
+});
+
+html+=`
+<hr>
+<h2>Totals Summary</h2>
+<p><b>FEMA Eligible Hours:</b> ${femaTotal}</p>
+<p><b>Grand Total Hours:</b> ${grandTotal}</p>
+`;
 
 const win=window.open("","","width=800,height=900");
 win.document.write(html);
@@ -316,5 +329,6 @@ if(!currentUser) renderLogin();
 else renderApp();
 
 </script>
+
 </body>
 </html>
