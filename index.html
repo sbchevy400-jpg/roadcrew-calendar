@@ -36,13 +36,11 @@ cursor:pointer;
 
 <h2>Roadcrew Work Calendar</h2>
 
-<!-- LOGIN -->
 <div id="login">
 <input id="email" placeholder="Email">
 <button onclick="login()">Login</button>
 </div>
 
-<!-- APP -->
 <div id="app" class="hidden">
 
 <h3>Add / Edit Entry</h3>
@@ -80,7 +78,31 @@ cursor:pointer;
 
 </div>
 
-<script>
+<!-- FIREBASE -->
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+getFirestore,
+collection,
+addDoc,
+onSnapshot,
+doc,
+updateDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+authDomain: "roadcrew-work-calendar.firebaseapp.com",
+projectId: "roadcrew-work-calendar",
+storageBucket: "roadcrew-work-calendar.firebasestorage.app",
+messagingSenderId: "373087389663",
+appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const entriesRef = collection(db,"entries");
 
 const admins=[
 "sbchevy400@gmail.com",
@@ -89,27 +111,18 @@ const admins=[
 ];
 
 let currentDate=new Date();
-let editingIndex=null;
+let editingId=null;
+let allEntries=[];
 
-function login(){
+window.login=function(){
 if(admins.includes(email.value)){
 login.style.display="none";
 app.classList.remove("hidden");
-buildCalendar();
+listenForUpdates();
 }else alert("Access denied");
 }
 
-function getEntries(){
-return JSON.parse(localStorage.getItem("entries")||"[]");
-}
-
-function saveEntries(e){
-localStorage.setItem("entries",JSON.stringify(e));
-}
-
-function saveEntry(){
-
-let entries=getEntries();
+async function saveEntry(){
 
 const entry={
 date:date.value,
@@ -120,27 +133,38 @@ work:workdone.value,
 fema:fema.value
 };
 
-if(editingIndex!==null){
-entries[editingIndex]=entry;
-editingIndex=null;
+if(editingId){
+await updateDoc(doc(db,"entries",editingId),entry);
+editingId=null;
 }else{
-entries.push(entry);
+await addDoc(entriesRef,entry);
 }
 
-saveEntries(entries);
 alert("Saved");
-buildCalendar();
 }
 
-function changeMonth(dir){
+function listenForUpdates(){
+
+onSnapshot(entriesRef,(snapshot)=>{
+
+allEntries=[];
+
+snapshot.forEach(d=>{
+allEntries.push({id:d.id,...d.data()});
+});
+
+buildCalendar();
+});
+}
+
+window.changeMonth=function(dir){
 currentDate.setMonth(currentDate.getMonth()+dir);
 buildCalendar();
 }
 
 function buildCalendar(){
 
-const cal=document.getElementById("calendar");
-cal.innerHTML="";
+calendar.innerHTML="";
 
 const year=currentDate.getFullYear();
 const month=currentDate.getMonth();
@@ -150,9 +174,7 @@ monthLabel.innerText=currentDate.toLocaleString('default',{month:'long',year:'nu
 const firstDay=new Date(year,month,1).getDay();
 const days=new Date(year,month+1,0).getDate();
 
-for(let i=0;i<firstDay;i++) cal.innerHTML+="<div></div>";
-
-const entries=getEntries();
+for(let i=0;i<firstDay;i++) calendar.innerHTML+="<div></div>";
 
 for(let d=1;d<=days;d++){
 
@@ -160,42 +182,40 @@ const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2
 
 let html=`<div class="day"><strong>${d}</strong>`;
 
-entries.forEach((e,index)=>{
+allEntries.forEach(e=>{
 if(e.date===dateStr){
-
-html+=`
-<div class="entry" onclick="editEntry(${index})">
+html+=`<div class="entry" onclick="editEntry('${e.id}')">
 ${e.worker} (${e.hours}h)
 </div>`;
 }
 });
 
 html+="</div>";
-cal.innerHTML+=html;
+calendar.innerHTML+=html;
 }
 }
 
-function editEntry(index){
+window.editEntry=function(id){
 
-const e=getEntries()[index];
+const e=allEntries.find(x=>x.id===id);
 
 date.value=e.date;
 worker.value=e.worker;
 hours.value=e.hours;
-location.value=e.location || "";
-workdone.value=e.work || "";
-fema.value=e.fema || "";
+location.value=e.location||"";
+workdone.value=e.work||"";
+fema.value=e.fema||"";
 
-editingIndex=index;
+editingId=id;
 window.scrollTo(0,0);
 }
 
-function printReport(){
+window.printReport=function(){
 
-const month=document.getElementById("reportMonth").value;
+const month=reportMonth.value;
 if(!month){alert("Select month");return;}
 
-const entries=getEntries().filter(e=>e.date.startsWith(month));
+const entries=allEntries.filter(e=>e.date.startsWith(month));
 
 let femaTotals={};
 let daily={};
@@ -224,13 +244,12 @@ w.document.write(`
 <p>
 <strong>${e.worker}</strong><br>
 Hours: ${e.hours}<br>
-Location: ${e.location || ""}<br>
-Work Performed: ${e.work || ""}<br>
-FEMA #: ${e.fema || "N/A"}
+Location: ${e.location||""}<br>
+Work Performed: ${e.work||""}<br>
+FEMA #: ${e.fema||"N/A"}
 </p><hr>
 `);
 });
-
 });
 
 w.document.write("<h2>FEMA Totals</h2>");
@@ -244,5 +263,6 @@ w.print();
 }
 
 </script>
+
 </body>
 </html>
