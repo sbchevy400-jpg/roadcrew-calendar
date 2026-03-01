@@ -4,7 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Roadcrew Work Calendar</title>
 
-<!-- FIREBASE -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
@@ -13,7 +13,7 @@ body{
   font-family:Arial;
   background:#f2f4f7;
   margin:15px;
-  font-size:20px;
+  font-size:22px;
 }
 
 h2{margin-bottom:10px}
@@ -36,9 +36,8 @@ button{
 .day{
   background:white;
   border:1px solid #bbb;
-  min-height:110px;
+  min-height:120px;
   padding:6px;
-  cursor:pointer;
 }
 
 .day:hover{
@@ -89,7 +88,7 @@ input, textarea{
 
 <div id="calendar" class="calendar"></div>
 
-<!-- ENTRY MODAL -->
+<!-- Entry Modal -->
 <div id="modal" class="modal">
 <div class="modal-content">
 
@@ -107,22 +106,25 @@ input, textarea{
 
 <script>
 
-/* ==========================
-   🔥 PASTE YOUR FIREBASE CONFIG HERE
-========================== */
+/* ======================
+   🔥 REPLACE WITH YOUR FIREBASE CONFIG
+====================== */
 
 const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_AUTH_DOMAIN",
-  projectId: "PASTE_PROJECT_ID"
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_AUTHDOMAIN",
+  projectId: "PASTE_YOUR_PROJECTID",
+  storageBucket: "PASTE_YOUR_STORAGEBUCKET",
+  messagingSenderId: "PASTE_YOUR_SENDERID",
+  appId: "PASTE_YOUR_APPID"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* ==========================
+/* ======================
    APP STATE
-========================== */
+====================== */
 
 let entries = {};
 let selectedDate=null;
@@ -130,9 +132,9 @@ let currentDate=new Date();
 let currentMonth=currentDate.getMonth();
 let currentYear=currentDate.getFullYear();
 
-/* ==========================
+/* ======================
    LIVE SYNC LISTENER
-========================== */
+====================== */
 
 db.collection("entries").onSnapshot(snapshot=>{
   entries={};
@@ -142,9 +144,9 @@ db.collection("entries").onSnapshot(snapshot=>{
   renderCalendar();
 });
 
-/* ==========================
-   CALENDAR
-========================== */
+/* ======================
+   CALENDAR RENDER
+====================== */
 
 function renderCalendar(){
 
@@ -193,14 +195,13 @@ if(currentMonth>11){currentMonth=0;currentYear++;}
 renderCalendar();
 }
 
-/* ==========================
+/* ======================
    MODAL
-========================== */
+====================== */
 
 function openModal(date){
 
 selectedDate=date;
-
 const e=entries[date]||{};
 
 modal.style.display="block";
@@ -215,19 +216,22 @@ function closeModal(){
 modal.style.display="none";
 }
 
-/* ==========================
-   SAVE ENTRY (SYNCED)
-========================== */
+/* ======================
+   SAVE ENTRY
+====================== */
 
 function saveEntry(){
 
-if(!selectedDate) return;
+if(!selectedDate){
+  alert("No date selected");
+  return;
+}
 
 db.collection("entries").doc(selectedDate).set({
   location:location.value,
   work:work.value,
   fema:fema.value,
-  timestamp:Date.now()
+  updated:Date.now()
 })
 .then(()=>{
   closeModal();
@@ -241,5 +245,6 @@ db.collection("entries").doc(selectedDate).set({
 renderCalendar();
 
 </script>
+
 </body>
 </html>
