@@ -3,7 +3,6 @@
 <head>
 
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="manifest.json">
 
 <title>Roadcrew Work Calendar</title>
 
@@ -11,18 +10,16 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-getFirestore,
-collection,
-addDoc,
-query,
-orderBy,
-onSnapshot,
-deleteDoc,
-doc,
-updateDoc,
-getDocs,
-enableIndexedDbPersistence
+getFirestore,collection,addDoc,query,orderBy,onSnapshot,
+deleteDoc,doc,updateDoc,getDocs,enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+import {
+getAuth,
+signInWithEmailAndPassword,
+onAuthStateChanged,
+signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 /* FIREBASE */
 const firebaseConfig={
@@ -33,22 +30,99 @@ projectId:"roadcrew-work-calendar"
 
 const app=initializeApp(firebaseConfig);
 const db=getFirestore(app);
+const auth=getAuth(app);
 
 enableIndexedDbPersistence(db).catch(()=>{});
 
+const ADMIN_EMAILS=[
+"sbchevy400@gmail.com",
+"kimber0270@gmail.com"
+];
+
+let isAdmin=false;
+
+/* LOGIN */
+window.login=async()=>{
+await signInWithEmailAndPassword(
+auth,
+loginEmail.value,
+loginPassword.value
+);
+};
+
+window.logout=()=>signOut(auth);
+
+/* AUTH STATE */
+onAuthStateChanged(auth,(user)=>{
+
+if(user){
+loginScreen.style.display="none";
+appScreen.style.display="block";
+
+isAdmin=ADMIN_EMAILS.includes(user.email);
+
+if(!isAdmin){
+adminOnly.style.display="none";
+}
+
+startApp();
+
+}else{
+loginScreen.style.display="block";
+appScreen.style.display="none";
+}
+});
+
+/* START APP AFTER LOGIN */
+function startApp(){
+
 const workRef=collection(db,"work");
 
-/* ELEMENTS */
-const date=document.getElementById("date");
-const worker=document.getElementById("worker");
-const hours=document.getElementById("hours");
-const location=document.getElementById("location");
-const workdone=document.getElementById("workdone");
-const fema=document.getElementById("fema");
+const q=query(workRef,orderBy("date","asc"));
 
-const entries=document.getElementById("entries");
-const calendar=document.getElementById("calendar");
-const totals=document.getElementById("totals");
+onSnapshot(q,(snapshot)=>{
+
+entries.innerHTML="";
+calendar.innerHTML="";
+
+let days={};
+
+snapshot.forEach(d=>{
+
+const data=d.data();
+const id=d.id;
+
+if(!days[data.date]) days[data.date]=[];
+days[data.date].push(data);
+
+/* entries */
+entries.innerHTML+=`
+<div class="card">
+<b>${data.worker}</b><br>
+${data.date} — ${data.hours} hrs<br>
+${data.location}<br>
+${data.work}<br>
+FEMA: ${data.fema||"-"}<br><br>
+
+${isAdmin?`
+<button onclick='deleteEntry("${id}")'>Delete</button>
+`:``}
+</div>`;
+});
+
+/* calendar */
+Object.keys(days).sort().forEach(day=>{
+calendar.innerHTML+=`
+<div class="dayBlock">
+<h3>${day}</h3>
+${days[day].map(e=>`
+<div class="calEntry">
+${e.worker}<br>${e.hours} hrs
+</div>`).join("")}
+</div>`;
+});
+
+});
 
 /* ADD ENTRY */
 window.addEntry=async()=>{
@@ -62,115 +136,47 @@ fema:fema.value
 });
 };
 
-/* DELETE */
+/* DELETE (ADMIN ONLY) */
 window.deleteEntry=async(id)=>{
-if(confirm("Delete entry?"))
+if(!isAdmin) return;
 await deleteDoc(doc(db,"work",id));
 };
 
-/* EDIT */
-window.editEntry=async(id,data)=>{
-const hrs=prompt("Edit hours",data.hours);
-if(hrs===null)return;
-await updateDoc(doc(db,"work",id),{hours:Number(hrs)});
-};
+/* PRINT REPORT (ADMIN ONLY) */
+window.printMonthlyReport=async()=>{
 
-/* SORTED QUERY */
-const q=query(workRef,orderBy("date","asc"));
+if(!isAdmin) return;
 
-onSnapshot(q,(snapshot)=>{
+const month=prompt("Enter month YYYY-MM");
+if(!month)return;
 
-entries.innerHTML="";
-calendar.innerHTML="";
+const snap=await getDocs(workRef);
 
-let equipTotals={
-"Dump Truck":0,
-"Motor Grader Deere":0,
-"Motor Grader Gallion":0,
-"Backhoe":0,
-"Brush Cutter":0
-};
+let html="<h1>Monthly Report "+month+"</h1>";
 
-let days={};   // calendar grouping
-let femaTotals={};
-let totalFema=0;
-
-snapshot.forEach(d=>{
-
+snap.forEach(d=>{
 const data=d.data();
-const id=d.id;
-const hrs=Number(data.hours||0);
-
-/* totals */
-if(equipTotals[data.worker]!=undefined)
-equipTotals[data.worker]+=hrs;
-
-if(data.fema){
-totalFema+=hrs;
-femaTotals[data.fema]=(femaTotals[data.fema]||0)+hrs;
+if(data.date.startsWith(month)){
+html+=`${data.date} - ${data.worker} - ${data.hours} hrs<br>`;
 }
-
-/* group by day */
-if(!days[data.date]) days[data.date]=[];
-days[data.date].push({id,data});
-
-/* entry list */
-entries.innerHTML+=`
-<div class="card">
-<b>${data.worker}</b><br>
-${data.date} — ${hrs} hrs<br>
-${data.location}<br>
-${data.work}<br>
-FEMA: ${data.fema||"-"}<br><br>
-
-<button onclick='editEntry("${id}",${JSON.stringify(data)})'>Edit</button>
-<button onclick='deleteEntry("${id}")'>Delete</button>
-</div>`;
 });
 
-/* BUILD TRUE CALENDAR */
-Object.keys(days).sort().forEach(day=>{
+const win=window.open("");
+win.document.write(html);
+win.print();
+};
 
-calendar.innerHTML+=`
-<div class="dayBlock">
-<h3>${day}</h3>
-${days[day].map(e=>`
-<div class="calEntry">
-${e.data.worker}<br>
-${e.data.hours} hrs
-</div>
-`).join("")}
-</div>`;
-});
-
-/* totals */
-let femaHTML="";
-for(const n in femaTotals)
-femaHTML+=`${n}: ${femaTotals[n]} hrs<br>`;
-
-totals.innerHTML=`
-<h3>Equipment Totals</h3>
-${Object.entries(equipTotals).map(e=>`${e[0]}: ${e[1]} hrs`).join("<br>")}
-<br><br>
-<h3>FEMA Totals</h3>
-Total FEMA Hours: ${totalFema}<br><br>
-<h3>FEMA Breakdown</h3>
-${femaHTML||"None"}
-`;
-
-});
+}
 
 </script>
 
 <style>
 
-/* BIG MOBILE FRIENDLY UI */
-
 body{
 font-family:Arial;
 background:#f4f6f8;
 margin:15px;
-font-size:22px;        /* DOUBLE SIZE TEXT */
+font-size:22px;
 }
 
 input,select,button{
@@ -178,43 +184,20 @@ width:100%;
 padding:18px;
 margin:10px 0;
 font-size:22px;
-border-radius:10px;
 }
 
-button{
-background:#2c7be5;
-color:white;
-border:none;
-font-weight:bold;
-}
-
-.card{
+.card,.dayBlock{
 background:white;
-padding:18px;
+padding:15px;
 margin:12px 0;
 border-radius:12px;
-box-shadow:0 3px 8px rgba(0,0,0,.15);
-}
-
-/* REAL CALENDAR LOOK */
-.dayBlock{
-background:white;
-margin:12px 0;
-padding:15px;
-border-radius:14px;
-box-shadow:0 3px 8px rgba(0,0,0,.15);
 }
 
 .calEntry{
 background:#e9f2ff;
+margin:6px 0;
 padding:10px;
-margin:8px 0;
 border-radius:8px;
-font-size:22px;
-}
-
-h2,h3{
-font-size:28px;
 }
 
 </style>
@@ -222,6 +205,23 @@ font-size:28px;
 </head>
 
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+
+<h2>Roadcrew Login</h2>
+
+<input id="loginEmail" placeholder="Email">
+<input id="loginPassword" type="password" placeholder="Password">
+
+<button onclick="login()">Login</button>
+
+</div>
+
+<!-- APP -->
+<div id="appScreen" style="display:none">
+
+<button onclick="logout()">Logout</button>
 
 <h2>Roadcrew Work Calendar</h2>
 
@@ -235,12 +235,16 @@ font-size:28px;
 <option>Brush Cutter</option>
 </select>
 
-<input id="hours" placeholder="Hours Worked">
+<input id="hours" placeholder="Hours">
 <input id="location" placeholder="Location">
-<input id="workdone" placeholder="Work Performed">
+<input id="workdone" placeholder="Work">
 <input id="fema" placeholder="FEMA Number">
 
 <button onclick="addEntry()">Add Entry</button>
+
+<div id="adminOnly">
+<button onclick="printMonthlyReport()">Print Monthly Report</button>
+</div>
 
 <h3>Calendar</h3>
 <div id="calendar"></div>
@@ -248,7 +252,7 @@ font-size:28px;
 <h3>Entries</h3>
 <div id="entries"></div>
 
-<div id="totals"></div>
+</div>
 
 </body>
 </html>
