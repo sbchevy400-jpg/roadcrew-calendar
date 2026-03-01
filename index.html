@@ -24,38 +24,34 @@ getDocs,
 enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* FIREBASE CONFIG */
-const firebaseConfig = {
+/* FIREBASE */
+const firebaseConfig={
 apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
 authDomain:"roadcrew-work-calendar.firebaseapp.com",
-projectId:"roadcrew-work-calendar",
-storageBucket:"roadcrew-work-calendar.firebasestorage.app",
-messagingSenderId:"373087389663",
-appId:"1:373087389663:web:a55368e82fcd1942ade66a"
+projectId:"roadcrew-work-calendar"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
 
 enableIndexedDbPersistence(db).catch(()=>{});
 
-const workRef = collection(db,"work");
+const workRef=collection(db,"work");
 
-/* GET PAGE ELEMENTS (FIXED SAVE ISSUE) */
-const date = document.getElementById("date");
-const worker = document.getElementById("worker");
-const hours = document.getElementById("hours");
-const location = document.getElementById("location");
-const workdone = document.getElementById("workdone");
-const fema = document.getElementById("fema");
+/* ELEMENTS */
+const date=document.getElementById("date");
+const worker=document.getElementById("worker");
+const hours=document.getElementById("hours");
+const location=document.getElementById("location");
+const workdone=document.getElementById("workdone");
+const fema=document.getElementById("fema");
 
-const entries = document.getElementById("entries");
-const calendar = document.getElementById("calendar");
-const totals = document.getElementById("totals");
-const installBtn = document.getElementById("installBtn");
+const entries=document.getElementById("entries");
+const calendar=document.getElementById("calendar");
+const totals=document.getElementById("totals");
 
 /* ADD ENTRY */
-window.addEntry = async ()=>{
+window.addEntry=async()=>{
 await addDoc(workRef,{
 date:date.value,
 worker:worker.value,
@@ -66,25 +62,21 @@ fema:fema.value
 });
 };
 
-/* DELETE ENTRY */
-window.deleteEntry = async(id)=>{
-if(confirm("Delete entry?")){
+/* DELETE */
+window.deleteEntry=async(id)=>{
+if(confirm("Delete entry?"))
 await deleteDoc(doc(db,"work",id));
-}
 };
 
-/* EDIT ENTRY */
-window.editEntry = async(id,data)=>{
-const hrs = prompt("Edit hours",data.hours);
-if(hrs===null) return;
-
-await updateDoc(doc(db,"work",id),{
-hours:Number(hrs)
-});
+/* EDIT */
+window.editEntry=async(id,data)=>{
+const hrs=prompt("Edit hours",data.hours);
+if(hrs===null)return;
+await updateDoc(doc(db,"work",id),{hours:Number(hrs)});
 };
 
-/* LIVE DATA LISTENER */
-const q=query(workRef,orderBy("date","desc"));
+/* SORTED QUERY */
+const q=query(workRef,orderBy("date","asc"));
 
 onSnapshot(q,(snapshot)=>{
 
@@ -99,6 +91,7 @@ let equipTotals={
 "Brush Cutter":0
 };
 
+let days={};   // calendar grouping
 let femaTotals={};
 let totalFema=0;
 
@@ -117,7 +110,11 @@ totalFema+=hrs;
 femaTotals[data.fema]=(femaTotals[data.fema]||0)+hrs;
 }
 
-/* entry card */
+/* group by day */
+if(!days[data.date]) days[data.date]=[];
+days[data.date].push({id,data});
+
+/* entry list */
 entries.innerHTML+=`
 <div class="card">
 <b>${data.worker}</b><br>
@@ -129,107 +126,97 @@ FEMA: ${data.fema||"-"}<br><br>
 <button onclick='editEntry("${id}",${JSON.stringify(data)})'>Edit</button>
 <button onclick='deleteEntry("${id}")'>Delete</button>
 </div>`;
+});
 
-/* calendar view */
+/* BUILD TRUE CALENDAR */
+Object.keys(days).sort().forEach(day=>{
+
 calendar.innerHTML+=`
-<div class="cal">
-<b>${data.date}</b><br>
-${data.worker}<br>
-${hrs} hrs
+<div class="dayBlock">
+<h3>${day}</h3>
+${days[day].map(e=>`
+<div class="calEntry">
+${e.data.worker}<br>
+${e.data.hours} hrs
+</div>
+`).join("")}
 </div>`;
 });
 
-/* totals display */
+/* totals */
 let femaHTML="";
-for(const n in femaTotals){
+for(const n in femaTotals)
 femaHTML+=`${n}: ${femaTotals[n]} hrs<br>`;
-}
 
 totals.innerHTML=`
 <h3>Equipment Totals</h3>
 ${Object.entries(equipTotals).map(e=>`${e[0]}: ${e[1]} hrs`).join("<br>")}
 <br><br>
-
 <h3>FEMA Totals</h3>
-Total FEMA Hours: ${totalFema} hrs<br><br>
-
+Total FEMA Hours: ${totalFema}<br><br>
 <h3>FEMA Breakdown</h3>
 ${femaHTML||"None"}
 `;
 
 });
 
-/* MONTHLY FEMA REPORT */
-window.monthlyReport=()=>{
-const m = prompt("Enter month (YYYY-MM)");
-if(!m) return;
-
-const cards=document.querySelectorAll(".card");
-let report="FEMA Monthly Report\n\n";
-
-cards.forEach(c=>{
-if(c.innerText.includes(m))
-report+=c.innerText+"\n\n";
-});
-
-const blob=new Blob([report],{type:"text/plain"});
-const a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="FEMA_Report_"+m+".txt";
-a.click();
-};
-
-/* BACKUP */
-window.backupData = async()=>{
-const snap=await getDocs(workRef);
-let data=[];
-snap.forEach(d=>data.push(d.data()));
-
-const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
-const a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="roadcrew_backup.json";
-a.click();
-};
-
-/* RESTORE */
-window.restoreData = async(e)=>{
-const file=e.target.files[0];
-const text=await file.text();
-const data=JSON.parse(text);
-
-for(const item of data){
-await addDoc(workRef,item);
-}
-
-alert("Restore complete");
-};
-
-/* INSTALL APP */
-let deferredPrompt;
-
-window.addEventListener("beforeinstallprompt",(e)=>{
-e.preventDefault();
-deferredPrompt=e;
-installBtn.style.display="block";
-});
-
-window.installApp=()=>{
-deferredPrompt.prompt();
-};
-
-if("serviceWorker" in navigator){
-navigator.serviceWorker.register("service-worker.js");
-}
-
 </script>
 
 <style>
-body{font-family:Arial;background:#f4f6f8;margin:15px}
-input,select,button{width:100%;padding:10px;margin:5px 0}
-button{background:#2c7be5;color:white;border:none;border-radius:6px}
-.card{background:white;padding:10px;margin:8px 0;border-radius:8px}
-.cal{display:inline-block;width:30%;background:white;margin:5px;padding:8px;text-align:center}
+
+/* BIG MOBILE FRIENDLY UI */
+
+body{
+font-family:Arial;
+background:#f4f6f8;
+margin:15px;
+font-size:22px;        /* DOUBLE SIZE TEXT */
+}
+
+input,select,button{
+width:100%;
+padding:18px;
+margin:10px 0;
+font-size:22px;
+border-radius:10px;
+}
+
+button{
+background:#2c7be5;
+color:white;
+border:none;
+font-weight:bold;
+}
+
+.card{
+background:white;
+padding:18px;
+margin:12px 0;
+border-radius:12px;
+box-shadow:0 3px 8px rgba(0,0,0,.15);
+}
+
+/* REAL CALENDAR LOOK */
+.dayBlock{
+background:white;
+margin:12px 0;
+padding:15px;
+border-radius:14px;
+box-shadow:0 3px 8px rgba(0,0,0,.15);
+}
+
+.calEntry{
+background:#e9f2ff;
+padding:10px;
+margin:8px 0;
+border-radius:8px;
+font-size:22px;
+}
+
+h2,h3{
+font-size:28px;
+}
+
 </style>
 
 </head>
@@ -254,14 +241,6 @@ button{background:#2c7be5;color:white;border:none;border-radius:6px}
 <input id="fema" placeholder="FEMA Number">
 
 <button onclick="addEntry()">Add Entry</button>
-<button onclick="monthlyReport()">Monthly FEMA Report</button>
-<button onclick="backupData()">Backup Data</button>
-
-<input type="file" onchange="restoreData(event)">
-
-<button id="installBtn" onclick="installApp()" style="display:none">
-Install App
-</button>
 
 <h3>Calendar</h3>
 <div id="calendar"></div>
