@@ -1,73 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.json">
+
 <title>Roadcrew Work Calendar</title>
-
-<style>
-body{
-font-family:Arial;
-background:#f4f6f8;
-text-align:center;
-padding:20px;
-}
-select,input{
-display:block;
-margin:8px auto;
-padding:10px;
-width:90%;
-max-width:320px;
-}
-button{
-padding:12px;
-background:#2c3e50;
-color:white;
-border:none;
-border-radius:6px;
-}
-.entry{
-background:white;
-margin:10px auto;
-padding:10px;
-border-radius:8px;
-max-width:350px;
-}
-.totals{
-background:#ffffff;
-margin:15px auto;
-padding:12px;
-border-radius:8px;
-max-width:350px;
-font-weight:bold;
-}
-</style>
-</head>
-
-<body>
-
-<h2>Ozark Township Roadcrew Calendar</h2>
-
-<select id="worker">
-<option value="">Select Equipment</option>
-<option>Dump Truck</option>
-<option>Motor Grader Deere</option>
-<option>Motor Grader Gallion</option>
-<option>Backhoe</option>
-<option>Brush Cutter</option>
-</select>
-
-<input id="hours" type="number" placeholder="Hours Worked">
-<input id="location" placeholder="Work Location">
-<input id="workdone" placeholder="Work Completed">
-<input id="fema" placeholder="FEMA Number">
-<input id="date" type="date">
-
-<button id="saveBtn">Save Work Entry</button>
-
-<div class="totals" id="totalsBox"></div>
-
-<div id="entries"></div>
 
 <script type="module">
 
@@ -76,52 +14,71 @@ import {
 getFirestore,
 collection,
 addDoc,
-onSnapshot,
 query,
-orderBy
+orderBy,
+onSnapshot,
+deleteDoc,
+doc,
+updateDoc,
+getDocs,
+enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+/* FIREBASE */
 const firebaseConfig = {
-apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-authDomain: "roadcrew-work-calendar.firebaseapp.com",
-projectId: "roadcrew-work-calendar",
-storageBucket: "roadcrew-work-calendar.firebasestorage.app",
-messagingSenderId: "373087389663",
-appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+authDomain:"roadcrew-work-calendar.firebaseapp.com",
+projectId:"roadcrew-work-calendar",
+storageBucket:"roadcrew-work-calendar.firebasestorage.app",
+messagingSenderId:"373087389663",
+appId:"1:373087389663:web:a55368e82fcd1942ade66a"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-document.getElementById("saveBtn").onclick = async () => {
+enableIndexedDbPersistence(db).catch(()=>{});
 
-const worker = document.getElementById("worker").value;
+const workRef = collection(db,"work");
 
-if(!worker){
-alert("Select equipment first");
-return;
-}
-
-await addDoc(collection(db,"work"),{
-worker:worker,
-hours:Number(document.getElementById("hours").value || 0),
-location:document.getElementById("location").value,
-work:document.getElementById("workdone").value,
-fema:document.getElementById("fema").value,
-date:document.getElementById("date").value,
-created:Date.now()
+/* ADD ENTRY */
+window.addEntry = async ()=>{
+await addDoc(workRef,{
+date:date.value,
+worker:worker.value,
+hours:Number(hours.value),
+location:location.value,
+work:workdone.value,
+fema:fema.value
 });
-
 };
 
-const q = query(collection(db,"work"), orderBy("created","desc"));
+/* DELETE */
+window.deleteEntry = async(id)=>{
+if(confirm("Delete entry?")){
+await deleteDoc(doc(db,"work",id));
+}
+};
+
+/* EDIT */
+window.editEntry = async(id,data)=>{
+const hrs = prompt("Hours",data.hours);
+if(hrs===null)return;
+
+await updateDoc(doc(db,"work",id),{
+hours:Number(hrs)
+});
+};
+
+/* LIVE DATA */
+const q=query(workRef,orderBy("date","desc"));
 
 onSnapshot(q,(snapshot)=>{
 
-const entries = document.getElementById("entries");
 entries.innerHTML="";
+calendar.innerHTML="";
 
-let equipmentTotals = {
+let equipTotals={
 "Dump Truck":0,
 "Motor Grader Deere":0,
 "Motor Grader Gallion":0,
@@ -129,62 +86,169 @@ let equipmentTotals = {
 "Brush Cutter":0
 };
 
-let femaTotals = {};
-let totalFemaHours = 0;
+let femaTotals={};
+let totalFema=0;
 
-snapshot.forEach(doc=>{
-const d = doc.data();
-const hrs = Number(d.hours || 0);
+snapshot.forEach(d=>{
+const data=d.data();
+const id=d.id;
+const hrs=Number(data.hours||0);
 
-// Equipment totals
-if(equipmentTotals[d.worker] !== undefined){
-equipmentTotals[d.worker] += hrs;
+if(equipTotals[data.worker]!=undefined)
+equipTotals[data.worker]+=hrs;
+
+if(data.fema){
+totalFema+=hrs;
+femaTotals[data.fema]=(femaTotals[data.fema]||0)+hrs;
 }
 
-// FEMA totals
-if(d.fema && d.fema.trim() !== ""){
-totalFemaHours += hrs;
+/* ENTRY CARD */
+entries.innerHTML+=`
+<div class="card">
+<b>${data.worker}</b><br>
+${data.date} — ${hrs} hrs<br>
+${data.location}<br>
+${data.work}<br>
+FEMA: ${data.fema||"-"}<br><br>
 
-if(!femaTotals[d.fema]){
-femaTotals[d.fema] = 0;
-}
-femaTotals[d.fema] += hrs;
-}
+<button onclick='editEntry("${id}",${JSON.stringify(data)})'>Edit</button>
+<button onclick='deleteEntry("${id}")'>Delete</button>
+</div>`;
 
-entries.innerHTML += `
-<div class="entry">
-<b>${d.worker}</b><br>
-${d.date} — ${d.hours} hrs<br>
-${d.location}<br>
-${d.work}<br>
-FEMA: ${d.fema}
+/* CALENDAR */
+calendar.innerHTML+=`
+<div class="cal">
+<b>${data.date}</b><br>
+${data.worker}<br>${hrs} hrs
 </div>`;
 });
 
-// FEMA breakdown display
-let femaHTML = "";
-for(const num in femaTotals){
-femaHTML += `${num}: ${femaTotals[num]} hrs<br>`;
-}
+/* TOTAL DISPLAY */
+let femaHTML="";
+for(const n in femaTotals)
+femaHTML+=`${n}: ${femaTotals[n]} hrs<br>`;
 
-document.getElementById("totalsBox").innerHTML = `
-<b>Equipment Totals</b><br><br>
-Dump Truck: ${equipmentTotals["Dump Truck"]} hrs<br>
-Motor Grader Deere: ${equipmentTotals["Motor Grader Deere"]} hrs<br>
-Motor Grader Gallion: ${equipmentTotals["Motor Grader Gallion"]} hrs<br>
-Backhoe: ${equipmentTotals["Backhoe"]} hrs<br>
-Brush Cutter: ${equipmentTotals["Brush Cutter"]} hrs
+totals.innerHTML=`
+<h3>Equipment Totals</h3>
+${Object.entries(equipTotals).map(e=>`${e[0]}: ${e[1]} hrs`).join("<br>")}
 <br><br>
-<b>FEMA Totals</b><br>
-Total FEMA Hours: ${totalFemaHours} hrs
-<br><br>
-<b>FEMA Breakdown</b><br>
-${femaHTML || "No FEMA work logged"}
+<h3>FEMA Totals</h3>
+Total FEMA Hours: ${totalFema}<br><br>
+<h3>FEMA Breakdown</h3>
+${femaHTML||"None"}
 `;
 
 });
 
+/* MONTHLY FEMA REPORT */
+window.monthlyReport=()=>{
+const m = prompt("Enter month (YYYY-MM)");
+if(!m)return;
+
+const cards=document.querySelectorAll(".card");
+let report="FEMA Monthly Report\n\n";
+
+cards.forEach(c=>{
+if(c.innerText.includes(m))
+report+=c.innerText+"\n\n";
+});
+
+const blob=new Blob([report],{type:"text/plain"});
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="FEMA_Report_"+m+".txt";
+a.click();
+};
+
+/* BACKUP */
+window.backupData = async()=>{
+const snap=await getDocs(workRef);
+let data=[];
+snap.forEach(d=>data.push(d.data()));
+
+const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="roadcrew_backup.json";
+a.click();
+};
+
+/* RESTORE */
+window.restoreData = async(e)=>{
+const file=e.target.files[0];
+const text=await file.text();
+const data=JSON.parse(text);
+
+for(const item of data){
+await addDoc(workRef,item);
+}
+alert("Restore complete");
+};
+
+/* INSTALL AS APP */
+let deferredPrompt;
+window.addEventListener("beforeinstallprompt",(e)=>{
+e.preventDefault();
+deferredPrompt=e;
+installBtn.style.display="block";
+});
+
+window.installApp=()=>{
+deferredPrompt.prompt();
+};
+
+if("serviceWorker" in navigator){
+navigator.serviceWorker.register("service-worker.js");
+}
+
 </script>
+
+<style>
+body{font-family:Arial;background:#f4f6f8;margin:15px}
+input,select,button{width:100%;padding:10px;margin:5px 0}
+button{background:#2c7be5;color:white;border:none;border-radius:6px}
+.card{background:white;padding:10px;margin:8px 0;border-radius:8px}
+.cal{display:inline-block;width:30%;background:white;margin:5px;padding:8px;text-align:center}
+</style>
+
+</head>
+
+<body>
+
+<h2>Roadcrew Work Calendar</h2>
+
+<input type="date" id="date">
+
+<select id="worker">
+<option>Dump Truck</option>
+<option>Motor Grader Deere</option>
+<option>Motor Grader Gallion</option>
+<option>Backhoe</option>
+<option>Brush Cutter</option>
+</select>
+
+<input id="hours" placeholder="Hours Worked">
+<input id="location" placeholder="Location">
+<input id="workdone" placeholder="Work Performed">
+<input id="fema" placeholder="FEMA Number">
+
+<button onclick="addEntry()">Add Entry</button>
+<button onclick="monthlyReport()">Monthly FEMA Report</button>
+<button onclick="backupData()">Backup Data</button>
+
+<input type="file" onchange="restoreData(event)">
+
+<button id="installBtn" onclick="installApp()" style="display:none">
+Install App
+</button>
+
+<h3>Calendar</h3>
+<div id="calendar"></div>
+
+<h3>Entries</h3>
+<div id="entries"></div>
+
+<div id="totals"></div>
 
 </body>
 </html>
