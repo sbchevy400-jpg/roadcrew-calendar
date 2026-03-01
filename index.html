@@ -1,24 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Roadcrew Work Calendar</title>
 
 <style>
-body{
-font-family:Arial;
-font-size:22px;
-margin:10px;
-}
-
-input,select,button{
-font-size:22px;
-padding:10px;
-margin:6px 0;
-width:100%;
-}
+body{font-family:Arial;font-size:22px;margin:10px;}
+input,select,button{font-size:22px;padding:10px;width:100%;margin:6px 0;}
 
 .calendar{
 display:grid;
@@ -27,23 +15,20 @@ gap:6px;
 }
 
 .day{
-border:1px solid #333;
-min-height:90px;
+border:1px solid black;
+min-height:100px;
 padding:6px;
-cursor:pointer;
-}
-
-.day strong{
-display:block;
-font-size:26px;
 }
 
 .entry{
-font-size:18px;
+background:#eef;
 margin-top:4px;
+padding:4px;
+cursor:pointer;
 }
 
 .hidden{display:none;}
+.navbtn{width:48%;display:inline-block;}
 </style>
 </head>
 
@@ -54,14 +39,13 @@ margin-top:4px;
 <!-- LOGIN -->
 <div id="login">
 <input id="email" placeholder="Email">
-<input id="password" type="password" placeholder="Password">
 <button onclick="login()">Login</button>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
 
-<h3>Add Work Entry</h3>
+<h3>Add / Edit Entry</h3>
 
 <input type="date" id="date">
 
@@ -73,54 +57,59 @@ margin-top:4px;
 <option>Brush Cutter</option>
 </select>
 
-<input id="hours" type="number" placeholder="Hours Worked">
+<input id="hours" type="number" placeholder="Hours">
 <input id="location" placeholder="Location Worked">
 <input id="workdone" placeholder="Work Performed">
-<input id="fema" placeholder="FEMA Number (optional)">
+<input id="fema" placeholder="FEMA Number">
 
 <button onclick="saveEntry()">Save Entry</button>
 
 <hr>
 
-<h3>Calendar</h3>
+<button class="navbtn" onclick="changeMonth(-1)">⬅ Previous</button>
+<button class="navbtn" onclick="changeMonth(1)">Next ➡</button>
+
+<h3 id="monthLabel"></h3>
 <div id="calendar" class="calendar"></div>
 
 <hr>
 
 <h3>Monthly Report</h3>
-
 <input type="month" id="reportMonth">
-<button onclick="printReport()">Print Monthly Report</button>
+<button onclick="printReport()">Print Report</button>
 
 </div>
 
 <script>
+
 const admins=[
 "sbchevy400@gmail.com",
 "kimber0270@gmail.com",
 "ndmorrison71@gmail.com"
 ];
 
+let currentDate=new Date();
+let editingIndex=null;
+
 function login(){
-let email=document.getElementById("email").value;
-if(admins.includes(email)){
-document.getElementById("login").classList.add("hidden");
-document.getElementById("app").classList.remove("hidden");
+if(admins.includes(email.value)){
+login.style.display="none";
+app.classList.remove("hidden");
 buildCalendar();
-}else{
-alert("Access denied");
-}
+}else alert("Access denied");
 }
 
 function getEntries(){
 return JSON.parse(localStorage.getItem("entries")||"[]");
 }
 
-function saveEntries(data){
-localStorage.setItem("entries",JSON.stringify(data));
+function saveEntries(e){
+localStorage.setItem("entries",JSON.stringify(e));
 }
 
 function saveEntry(){
+
+let entries=getEntries();
 
 const entry={
 date:date.value,
@@ -131,11 +120,20 @@ work:workdone.value,
 fema:fema.value
 };
 
-let entries=getEntries();
+if(editingIndex!==null){
+entries[editingIndex]=entry;
+editingIndex=null;
+}else{
 entries.push(entry);
-saveEntries(entries);
+}
 
-alert("Saved!");
+saveEntries(entries);
+alert("Saved");
+buildCalendar();
+}
+
+function changeMonth(dir){
+currentDate.setMonth(currentDate.getMonth()+dir);
 buildCalendar();
 }
 
@@ -144,16 +142,15 @@ function buildCalendar(){
 const cal=document.getElementById("calendar");
 cal.innerHTML="";
 
-const today=new Date();
-const year=today.getFullYear();
-const month=today.getMonth();
+const year=currentDate.getFullYear();
+const month=currentDate.getMonth();
+
+monthLabel.innerText=currentDate.toLocaleString('default',{month:'long',year:'numeric'});
 
 const firstDay=new Date(year,month,1).getDay();
 const days=new Date(year,month+1,0).getDate();
 
-for(let i=0;i<firstDay;i++){
-cal.innerHTML+="<div></div>";
-}
+for(let i=0;i<firstDay;i++) cal.innerHTML+="<div></div>";
 
 const entries=getEntries();
 
@@ -161,12 +158,16 @@ for(let d=1;d<=days;d++){
 
 const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 
-const dayEntries=entries.filter(e=>e.date===dateStr);
-
 let html=`<div class="day"><strong>${d}</strong>`;
 
-dayEntries.forEach(e=>{
-html+=`<div class="entry">${e.worker} (${e.hours}h)</div>`;
+entries.forEach((e,index)=>{
+if(e.date===dateStr){
+
+html+=`
+<div class="entry" onclick="editEntry(${index})">
+${e.worker} (${e.hours}h)
+</div>`;
+}
 });
 
 html+="</div>";
@@ -174,63 +175,74 @@ cal.innerHTML+=html;
 }
 }
 
-function printReport(){
+function editEntry(index){
 
-const monthValue=document.getElementById("reportMonth").value;
+const e=getEntries()[index];
 
-if(!monthValue){
-alert("Select a month first");
-return;
+date.value=e.date;
+worker.value=e.worker;
+hours.value=e.hours;
+location.value=e.location || "";
+workdone.value=e.work || "";
+fema.value=e.fema || "";
+
+editingIndex=index;
+window.scrollTo(0,0);
 }
 
-const entries=getEntries().filter(e=>e.date.startsWith(monthValue));
+function printReport(){
+
+const month=document.getElementById("reportMonth").value;
+if(!month){alert("Select month");return;}
+
+const entries=getEntries().filter(e=>e.date.startsWith(month));
 
 let femaTotals={};
-let dailyTotals={};
+let daily={};
 
 entries.forEach(e=>{
-if(!dailyTotals[e.date]) dailyTotals[e.date]=[];
-dailyTotals[e.date].push(e);
+
+if(!daily[e.date]) daily[e.date]=[];
+daily[e.date].push(e);
 
 if(e.fema){
 if(!femaTotals[e.fema]) femaTotals[e.fema]=0;
-femaTotals[e.fema]+=e.hours;
+femaTotals[e.fema]+=Number(e.hours)||0;
 }
 });
 
-let report=window.open("","","width=900,height=700");
+let w=window.open("","","width=900,height=700");
 
-report.document.write(`<h2>Roadcrew Monthly Report - ${monthValue}</h2>`);
+w.document.write(`<h2>Monthly Report ${month}</h2>`);
 
-Object.keys(dailyTotals).sort().forEach(date=>{
+Object.keys(daily).sort().forEach(date=>{
 
-report.document.write(`<h3>${date}</h3>`);
+w.document.write(`<h3>${date}</h3>`);
 
-dailyTotals[date].forEach(e=>{
-report.document.write(`
+daily[date].forEach(e=>{
+w.document.write(`
 <p>
 <strong>${e.worker}</strong><br>
 Hours: ${e.hours}<br>
-Location: ${e.location}<br>
-Work Performed: ${e.work}<br>
-FEMA #: ${e.fema||"N/A"}
-</p>
-<hr>
+Location: ${e.location || ""}<br>
+Work Performed: ${e.work || ""}<br>
+FEMA #: ${e.fema || "N/A"}
+</p><hr>
 `);
 });
 
 });
 
-report.document.write("<h2>FEMA Totals</h2>");
+w.document.write("<h2>FEMA Totals</h2>");
 
 Object.keys(femaTotals).forEach(f=>{
-report.document.write(`<p>FEMA ${f}: ${femaTotals[f]} hours</p>`);
+w.document.write(`<p>${f}: ${femaTotals[f]} hours</p>`);
 });
 
-report.document.close();
-report.print();
+w.document.close();
+w.print();
 }
-</script>
 
+</script>
 </body>
 </html>
