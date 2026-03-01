@@ -12,7 +12,7 @@ background:#f4f6f8;
 text-align:center;
 padding:20px;
 }
-input{
+select,input{
 display:block;
 margin:8px auto;
 padding:10px;
@@ -33,6 +33,14 @@ padding:10px;
 border-radius:8px;
 max-width:350px;
 }
+.totals{
+background:#ffffff;
+margin:15px auto;
+padding:12px;
+border-radius:8px;
+max-width:350px;
+font-weight:bold;
+}
 </style>
 </head>
 
@@ -40,7 +48,14 @@ max-width:350px;
 
 <h2>Ozark Township Roadcrew Calendar</h2>
 
-<input id="worker" placeholder="Worker Name">
+<!-- Worker selector -->
+<select id="worker">
+<option value="">Select Worker</option>
+<option>Worker 1</option>
+<option>Worker 2</option>
+<option>Worker 3</option>
+</select>
+
 <input id="hours" type="number" placeholder="Hours Worked">
 <input id="location" placeholder="Work Location">
 <input id="workdone" placeholder="Work Completed">
@@ -48,6 +63,13 @@ max-width:350px;
 <input id="date" type="date">
 
 <button id="saveBtn">Save Work Entry</button>
+
+<div class="totals" id="totalsBox">
+Total Hours:<br>
+Worker 1: 0 hrs<br>
+Worker 2: 0 hrs<br>
+Worker 3: 0 hrs
+</div>
 
 <div id="entries"></div>
 
@@ -75,11 +97,19 @@ appId: "1:373087389663:web:a55368e82fcd1942ade66a"
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Save work entry
+
 document.getElementById("saveBtn").onclick = async () => {
 
+const worker = document.getElementById("worker").value;
+if(!worker){
+alert("Select a worker first");
+return;
+}
+
 await addDoc(collection(db,"work"),{
-worker:document.getElementById("worker").value,
-hours:document.getElementById("hours").value,
+worker:worker,
+hours:Number(document.getElementById("hours").value || 0),
 location:document.getElementById("location").value,
 work:document.getElementById("workdone").value,
 fema:document.getElementById("fema").value,
@@ -89,13 +119,28 @@ created:Date.now()
 
 };
 
+// Live updates + totals
+
 const q = query(collection(db,"work"), orderBy("created","desc"));
 
 onSnapshot(q,(snapshot)=>{
+
 const entries = document.getElementById("entries");
 entries.innerHTML="";
+
+let totals = {
+"Worker 1":0,
+"Worker 2":0,
+"Worker 3":0
+};
+
 snapshot.forEach(doc=>{
 const d = doc.data();
+
+if(totals[d.worker] !== undefined){
+totals[d.worker] += Number(d.hours || 0);
+}
+
 entries.innerHTML += `
 <div class="entry">
 <b>${d.worker}</b><br>
@@ -105,6 +150,15 @@ ${d.work}<br>
 FEMA: ${d.fema}
 </div>`;
 });
+
+// Update totals display
+
+document.getElementById("totalsBox").innerHTML = `
+Total Hours:<br>
+Worker 1: ${totals["Worker 1"]} hrs<br>
+Worker 2: ${totals["Worker 2"]} hrs<br>
+Worker 3: ${totals["Worker 3"]} hrs`;
+
 });
 
 </script>
