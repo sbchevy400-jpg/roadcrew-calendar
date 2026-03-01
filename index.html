@@ -37,15 +37,17 @@ input,select,button{
   cursor:pointer;
 }
 
-.selected{
-  background:#cfe8ff;
-}
+.selected{ background:#cfe8ff; }
 
 .entry{
   border-top:1px solid #aaa;
   margin-top:5px;
   padding-top:5px;
   font-size:18px;
+}
+
+@media print{
+  button, select, input { display:none; }
 }
 </style>
 </head>
@@ -123,12 +125,9 @@ appDiv.innerHTML=`
 <button id="loginBtn">Login</button>
 `;
 
-document.getElementById("loginBtn").onclick=()=>{
-const u=document.getElementById("loginUser").value;
-const p=document.getElementById("loginPass").value;
-
-if(USERS[u]===p){
-localStorage.setItem("user",u);
+loginBtn.onclick=()=>{
+if(USERS[loginUser.value]===loginPass.value){
+localStorage.setItem("user",loginUser.value);
 location.reload();
 }else alert("Invalid login");
 };
@@ -146,7 +145,6 @@ function buildCalendar(){
 const now=new Date();
 const year=now.getFullYear();
 const month=now.getMonth();
-
 const last=new Date(year,month+1,0);
 
 let html="<div class='calendar'>";
@@ -166,7 +164,6 @@ ${dayEntries.map(e=>`<div class="entry">${e.worker} (${e.hours})</div>`).join(""
 }
 
 html+="</div>";
-
 return html;
 }
 
@@ -176,6 +173,7 @@ function renderApp(){
 
 appDiv.innerHTML=`
 <h1>Roadcrew Work Calendar</h1>
+
 <button id="logoutBtn">Logout</button>
 
 ${buildCalendar()}
@@ -195,14 +193,25 @@ ${WORKERS.map(w=>`<option>${w}</option>`).join("")}
 
 <button id="saveBtn">Save Entry</button>
 
-<button onclick="window.print()">Print Monthly Report</button>
+<h2>Monthly Report</h2>
+
+<select id="reportMonth">
+${[...Array(12)].map((_,i)=>
+`<option value="${i}">${new Date(0,i).toLocaleString('default',{month:'long'})}</option>`
+).join("")}
+</select>
+
+<input id="reportYear" type="number" value="${new Date().getFullYear()}">
+
+<button id="printBtn">Print Selected Month</button>
 
 <div id="dayEntries"></div>
 `;
 
-document.getElementById("logoutBtn").onclick=logout;
+logoutBtn.onclick=logout;
+saveBtn.onclick=addEntry;
+printBtn.onclick=printMonthlyReport;
 
-/* select day */
 document.querySelectorAll(".day").forEach(d=>{
 d.onclick=()=>{
 selectedDate=d.dataset.date;
@@ -210,23 +219,20 @@ renderApp();
 };
 });
 
-/* SAVE ENTRY — FIXED */
-document.getElementById("saveBtn").onclick=addEntry;
-
 renderSelectedEntries();
 }
 
-/* ================= SAVE ENTRY ================= */
+/* ================= SAVE ================= */
 
 async function addEntry(){
 
 const entry={
-date:document.getElementById("dateInput").value,
-worker:document.getElementById("workerInput").value,
-hours:document.getElementById("hoursInput").value,
-location:document.getElementById("locationInput").value,
-work:document.getElementById("workInput").value,
-fema:document.getElementById("femaInput").value
+date:dateInput.value,
+worker:workerInput.value,
+hours:hoursInput.value,
+location:locationInput.value,
+work:workInput.value,
+fema:femaInput.value
 };
 
 if(!entry.date||!entry.hours){
@@ -237,16 +243,49 @@ return;
 await addDoc(collection(db,"entries"),entry);
 }
 
-/* ================= SHOW DAY ================= */
+/* ================= PRINT REPORT ================= */
+
+function printMonthlyReport(){
+
+const month=parseInt(reportMonth.value);
+const year=parseInt(reportYear.value);
+
+const filtered=allEntries.filter(e=>{
+const d=new Date(e.date);
+return d.getMonth()===month && d.getFullYear()===year;
+});
+
+let html=`<h1>Roadcrew Monthly Report</h1>`;
+html+=`<h2>${new Date(year,month).toLocaleString('default',{month:'long'})} ${year}</h2>`;
+
+filtered.sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+filtered.forEach(e=>{
+html+=`
+<p>
+<b>${e.date}</b><br>
+${e.worker} — ${e.hours} hrs<br>
+${e.location}<br>
+${e.work}<br>
+FEMA: ${e.fema||"-"}
+</p>
+<hr>`;
+});
+
+const win=window.open("","","width=800,height=900");
+win.document.write(html);
+win.document.close();
+win.print();
+}
+
+/* ================= DAY VIEW ================= */
 
 function renderSelectedEntries(){
-
 if(!selectedDate) return;
 
 const list=allEntries.filter(e=>e.date===selectedDate);
 
-document.getElementById("dayEntries").innerHTML=
-list.map(e=>`
+dayEntries.innerHTML=list.map(e=>`
 <div class="entry">
 ${e.worker} — ${e.hours} hrs<br>
 ${e.location}<br>
@@ -257,15 +296,14 @@ ADMINS.includes(currentUser)
 ? `<br><button onclick="deleteEntry('${e.id}')">Delete</button>`
 :""
 }
-</div>
-`).join("");
+</div>`).join("");
 }
 
 window.deleteEntry=async(id)=>{
 await deleteDoc(doc(db,"entries",id));
 };
 
-/* ================= FIRESTORE LIVE SYNC ================= */
+/* ================= LIVE SYNC ================= */
 
 onSnapshot(collection(db,"entries"),snap=>{
 allEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -278,6 +316,5 @@ if(!currentUser) renderLogin();
 else renderApp();
 
 </script>
-
 </body>
 </html>
