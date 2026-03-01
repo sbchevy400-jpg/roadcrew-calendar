@@ -7,7 +7,6 @@
 <title>Roadcrew Work Calendar</title>
 
 <style>
-
 body{
   font-family:Arial;
   max-width:900px;
@@ -38,10 +37,6 @@ input,select,button{
   cursor:pointer;
 }
 
-.day:hover{
-  background:#f0f0f0;
-}
-
 .selected{
   background:#cfe8ff;
 }
@@ -52,11 +47,6 @@ input,select,button{
   padding-top:5px;
   font-size:18px;
 }
-
-h1,h2{
-  text-align:center;
-}
-
 </style>
 </head>
 
@@ -65,8 +55,6 @@ h1,h2{
 <div id="app"></div>
 
 <script type="module">
-
-/* ================= FIREBASE ================= */
 
 import { initializeApp } from
 "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -81,13 +69,12 @@ import {
 } from
 "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+/* ================= FIREBASE ================= */
+
 const firebaseConfig={
   apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
   authDomain:"roadcrew-work-calendar.firebaseapp.com",
-  projectId:"roadcrew-work-calendar",
-  storageBucket:"roadcrew-work-calendar.firebasestorage.app",
-  messagingSenderId:"373087389663",
-  appId:"1:373087389663:web:a55368e82fcd1942ade66a"
+  projectId:"roadcrew-work-calendar"
 };
 
 const app=initializeApp(firebaseConfig);
@@ -110,8 +97,6 @@ worker2:"crew123",
 worker3:"crew123"
 };
 
-/* ================= EQUIPMENT ================= */
-
 const WORKERS=[
 "Dump Truck",
 "Motor Grader Deere",
@@ -132,24 +117,27 @@ function renderLogin(){
 appDiv.innerHTML=`
 <h1>Roadcrew Work Calendar</h1>
 
-<input id="u" placeholder="Username">
-<input id="p" type="password" placeholder="Password">
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
 
-<button onclick="login()">Login</button>
+<button id="loginBtn">Login</button>
 `;
-}
 
-window.login=()=>{
-if(USERS[u.value]===p.value){
-localStorage.setItem("user",u.value);
+document.getElementById("loginBtn").onclick=()=>{
+const u=document.getElementById("loginUser").value;
+const p=document.getElementById("loginPass").value;
+
+if(USERS[u]===p){
+localStorage.setItem("user",u);
 location.reload();
 }else alert("Invalid login");
 };
+}
 
-window.logout=()=>{
+function logout(){
 localStorage.removeItem("user");
 location.reload();
-};
+}
 
 /* ================= CALENDAR ================= */
 
@@ -159,7 +147,6 @@ const now=new Date();
 const year=now.getFullYear();
 const month=now.getMonth();
 
-const first=new Date(year,month,1);
 const last=new Date(year,month+1,0);
 
 let html="<div class='calendar'>";
@@ -172,7 +159,7 @@ const dayEntries=allEntries.filter(e=>e.date===dateStr);
 
 html+=`
 <div class="day ${selectedDate===dateStr?'selected':''}"
-onclick="selectDay('${dateStr}')">
+data-date="${dateStr}">
 <b>${i}</b>
 ${dayEntries.map(e=>`<div class="entry">${e.worker} (${e.hours})</div>`).join("")}
 </div>`;
@@ -183,55 +170,80 @@ html+="</div>";
 return html;
 }
 
-window.selectDay=(date)=>{
-selectedDate=date;
-renderApp();
-};
-
 /* ================= MAIN APP ================= */
 
 function renderApp(){
 
 appDiv.innerHTML=`
 <h1>Roadcrew Work Calendar</h1>
-
-<button onclick="logout()">Logout</button>
-
-<h2>${selectedDate?`Entries for ${selectedDate}`:"Select a day"}</h2>
+<button id="logoutBtn">Logout</button>
 
 ${buildCalendar()}
 
 <h2>Add Entry</h2>
 
-<input type="date" id="date" value="${selectedDate||""}">
+<input type="date" id="dateInput" value="${selectedDate||""}">
 
-<select id="worker">
+<select id="workerInput">
 ${WORKERS.map(w=>`<option>${w}</option>`).join("")}
 </select>
 
-<input id="hours" placeholder="Hours">
-<input id="location" placeholder="Location">
-<input id="work" placeholder="Work Performed">
-<input id="fema" placeholder="FEMA Number">
+<input id="hoursInput" placeholder="Hours">
+<input id="locationInput" placeholder="Location">
+<input id="workInput" placeholder="Work Performed">
+<input id="femaInput" placeholder="FEMA Number">
 
-<button onclick="addEntry()">Save Entry</button>
+<button id="saveBtn">Save Entry</button>
 
 <button onclick="window.print()">Print Monthly Report</button>
 
 <div id="dayEntries"></div>
 `;
 
-renderSelectedDayEntries();
+document.getElementById("logoutBtn").onclick=logout;
+
+/* select day */
+document.querySelectorAll(".day").forEach(d=>{
+d.onclick=()=>{
+selectedDate=d.dataset.date;
+renderApp();
+};
+});
+
+/* SAVE ENTRY — FIXED */
+document.getElementById("saveBtn").onclick=addEntry;
+
+renderSelectedEntries();
 }
 
-/* ================= ENTRIES ================= */
+/* ================= SAVE ENTRY ================= */
 
-function renderSelectedDayEntries(){
+async function addEntry(){
+
+const entry={
+date:document.getElementById("dateInput").value,
+worker:document.getElementById("workerInput").value,
+hours:document.getElementById("hoursInput").value,
+location:document.getElementById("locationInput").value,
+work:document.getElementById("workInput").value,
+fema:document.getElementById("femaInput").value
+};
+
+if(!entry.date||!entry.hours){
+alert("Date and hours required");
+return;
+}
+
+await addDoc(collection(db,"entries"),entry);
+}
+
+/* ================= SHOW DAY ================= */
+
+function renderSelectedEntries(){
 
 if(!selectedDate) return;
 
-const list=allEntries
-.filter(e=>e.date===selectedDate);
+const list=allEntries.filter(e=>e.date===selectedDate);
 
 document.getElementById("dayEntries").innerHTML=
 list.map(e=>`
@@ -249,30 +261,11 @@ ADMINS.includes(currentUser)
 `).join("");
 }
 
-/* ================= FIRESTORE ================= */
-
-window.addEntry=async()=>{
-
-const entry={
-date:date.value,
-worker:worker.value,
-hours:hours.value,
-location:location.value,
-work:work.value,
-fema:fema.value
-};
-
-if(!entry.date||!entry.hours){
-alert("Date and hours required");
-return;
-}
-
-await addDoc(collection(db,"entries"),entry);
-};
-
 window.deleteEntry=async(id)=>{
 await deleteDoc(doc(db,"entries",id));
 };
+
+/* ================= FIRESTORE LIVE SYNC ================= */
 
 onSnapshot(collection(db,"entries"),snap=>{
 allEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
