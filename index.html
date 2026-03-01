@@ -4,20 +4,76 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Roadcrew Work Calendar</title>
 
-<style>
-body{font-family:Arial;font-size:22px;margin:10px;}
-input,select,button{font-size:22px;padding:10px;width:100%;margin:6px 0;}
+<!-- FIREBASE -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-.calendar{
-display:grid;
-grid-template-columns:repeat(7,1fr);
-gap:6px;
+<style>
+body{
+  font-family:Arial;
+  background:#f2f4f7;
+  margin:15px;
+  font-size:20px;
 }
 
-.day{border:1px solid black;min-height:100px;padding:6px;}
-.entry{background:#eef;margin-top:4px;padding:4px;cursor:pointer;}
-.hidden{display:none;}
-.navbtn{width:48%;display:inline-block;}
+h2{margin-bottom:10px}
+
+.controls{
+  margin-bottom:10px;
+}
+
+button{
+  font-size:20px;
+  padding:8px 12px;
+}
+
+.calendar{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+}
+
+.day{
+  background:white;
+  border:1px solid #bbb;
+  min-height:110px;
+  padding:6px;
+  cursor:pointer;
+}
+
+.day:hover{
+  background:#eef5ff;
+}
+
+.entry{
+  background:#dbe9ff;
+  margin-top:5px;
+  padding:4px;
+  font-size:16px;
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:#0008;
+}
+
+.modal-content{
+  background:white;
+  margin:8% auto;
+  padding:20px;
+  width:320px;
+}
+
+input, textarea{
+  width:100%;
+  font-size:18px;
+  margin-bottom:10px;
+}
 </style>
 </head>
 
@@ -25,225 +81,164 @@ gap:6px;
 
 <h2>Roadcrew Work Calendar</h2>
 
-<!-- LOGIN -->
-<div id="loginBox">
-<input id="email" placeholder="Email">
-<input id="password" type="password" placeholder="Password">
-<button id="loginBtn">Login</button>
+<div class="controls">
+<button onclick="changeMonth(-1)">◀</button>
+<span id="monthLabel"></span>
+<button onclick="changeMonth(1)">▶</button>
 </div>
 
-<div id="app" class="hidden">
-
-<h3>Add / Edit Entry</h3>
-
-<input type="date" id="date">
-
-<select id="worker">
-<option>Dump Truck</option>
-<option>Motor Grader Deere</option>
-<option>Motor Grader Gallion</option>
-<option>Backhoe</option>
-<option>Brush Cutter</option>
-</select>
-
-<input id="hours" type="number" placeholder="Hours">
-<input id="location" placeholder="Location Worked">
-<input id="workdone" placeholder="Work Performed">
-<input id="fema" placeholder="FEMA Number">
-
-<button id="saveBtn">Save Entry</button>
-
-<hr>
-
-<button class="navbtn" id="prevBtn">⬅ Previous</button>
-<button class="navbtn" id="nextBtn">Next ➡</button>
-
-<h3 id="monthLabel"></h3>
 <div id="calendar" class="calendar"></div>
 
-<hr>
+<!-- ENTRY MODAL -->
+<div id="modal" class="modal">
+<div class="modal-content">
 
-<h3>Monthly Report</h3>
-<input type="month" id="reportMonth">
-<button id="printBtn">Print Report</button>
+<h3 id="modalDate"></h3>
+
+<input id="location" placeholder="Location">
+<textarea id="work" placeholder="Work Performed"></textarea>
+<input id="fema" placeholder="FEMA Number">
+
+<button onclick="saveEntry()">Save Entry</button>
+<button onclick="closeModal()">Cancel</button>
 
 </div>
+</div>
 
-<script type="module">
+<script>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-getFirestore,
-collection,
-addDoc,
-onSnapshot,
-doc,
-updateDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-import {
-getAuth,
-signInWithEmailAndPassword,
-onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+/* ==========================
+   🔥 PASTE YOUR FIREBASE CONFIG HERE
+========================== */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-  authDomain: "roadcrew-work-calendar.firebaseapp.com",
-  projectId: "roadcrew-work-calendar",
-  storageBucket: "roadcrew-work-calendar.firebasestorage.app",
-  messagingSenderId: "373087389663",
-  appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE_AUTH_DOMAIN",
+  projectId: "PASTE_PROJECT_ID"
 };
 
-const appFirebase=initializeApp(firebaseConfig);
-const db=getFirestore(appFirebase);
-const auth=getAuth(appFirebase);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-const entriesRef=collection(db,"entries");
+/* ==========================
+   APP STATE
+========================== */
 
+let entries = {};
+let selectedDate=null;
 let currentDate=new Date();
-let editingId=null;
-let allEntries=[];
+let currentMonth=currentDate.getMonth();
+let currentYear=currentDate.getFullYear();
 
-/* LOGIN */
-document.getElementById("loginBtn").onclick=async()=>{
+/* ==========================
+   LIVE SYNC LISTENER
+========================== */
 
-try{
-await signInWithEmailAndPassword(
-auth,
-email.value,
-password.value
-);
-}catch(err){
-alert("Login failed: "+err.message);
-}
-};
-
-onAuthStateChanged(auth,(user)=>{
-if(user){
-loginBox.style.display="none";
-app.classList.remove("hidden");
-listenForUpdates();
-}
+db.collection("entries").onSnapshot(snapshot=>{
+  entries={};
+  snapshot.forEach(doc=>{
+    entries[doc.id]=doc.data();
+  });
+  renderCalendar();
 });
 
-/* SAVE ENTRY */
-saveBtn.onclick=async()=>{
+/* ==========================
+   CALENDAR
+========================== */
 
-const entry={
-date:date.value,
-worker:worker.value,
-hours:Number(hours.value),
-location:location.value,
-work:workdone.value,
-fema:fema.value
-};
+function renderCalendar(){
 
-if(editingId){
-await updateDoc(doc(db,"entries",editingId),entry);
-editingId=null;
-}else{
-await addDoc(entriesRef,entry);
+const cal=document.getElementById("calendar");
+cal.innerHTML="";
+
+document.getElementById("monthLabel").innerText=
+new Date(currentYear,currentMonth)
+.toLocaleString("default",{month:"long",year:"numeric"});
+
+const firstDay=new Date(currentYear,currentMonth,1).getDay();
+const days=new Date(currentYear,currentMonth+1,0).getDate();
+
+for(let i=0;i<firstDay;i++){
+  cal.appendChild(document.createElement("div"));
 }
 
-alert("Saved");
-};
+for(let d=1; d<=days; d++){
 
-/* LIVE SYNC */
-function listenForUpdates(){
+  const key=`${currentYear}-${currentMonth+1}-${d}`;
+  const entry=entries[key];
 
-onSnapshot(entriesRef,(snapshot)=>{
+  const div=document.createElement("div");
+  div.className="day";
+  div.onclick=()=>openModal(key);
 
-allEntries=[];
-snapshot.forEach(d=>{
-allEntries.push({id:d.id,...d.data()});
-});
+  div.innerHTML=`<b>${d}</b>`;
 
-buildCalendar();
-});
-}
+  if(entry){
+    div.innerHTML+=`
+      <div class="entry">
+        ${entry.location || ""}
+      </div>`;
+  }
 
-/* MONTH NAV */
-prevBtn.onclick=()=>{currentDate.setMonth(currentDate.getMonth()-1);buildCalendar();}
-nextBtn.onclick=()=>{currentDate.setMonth(currentDate.getMonth()+1);buildCalendar();}
-
-/* CALENDAR */
-function buildCalendar(){
-
-calendar.innerHTML="";
-
-const year=currentDate.getFullYear();
-const month=currentDate.getMonth();
-
-monthLabel.innerText=currentDate.toLocaleString('default',{month:'long',year:'numeric'});
-
-const firstDay=new Date(year,month,1).getDay();
-const days=new Date(year,month+1,0).getDate();
-
-for(let i=0;i<firstDay;i++) calendar.innerHTML+="<div></div>";
-
-for(let d=1;d<=days;d++){
-
-const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-
-let html=`<div class="day"><strong>${d}</strong>`;
-
-allEntries.forEach(e=>{
-if(e.date===dateStr){
-html+=`<div class="entry" onclick="editEntry('${e.id}')">
-${e.worker} (${e.hours}h)
-</div>`;
-}
-});
-
-html+="</div>";
-calendar.innerHTML+=html;
+  cal.appendChild(div);
 }
 }
 
-window.editEntry=(id)=>{
-const e=allEntries.find(x=>x.id===id);
-date.value=e.date;
-worker.value=e.worker;
-hours.value=e.hours;
+function changeMonth(n){
+currentMonth+=n;
+
+if(currentMonth<0){currentMonth=11;currentYear--;}
+if(currentMonth>11){currentMonth=0;currentYear++;}
+
+renderCalendar();
+}
+
+/* ==========================
+   MODAL
+========================== */
+
+function openModal(date){
+
+selectedDate=date;
+
+const e=entries[date]||{};
+
+modal.style.display="block";
+modalDate.innerText=date;
+
 location.value=e.location||"";
-workdone.value=e.work||"";
+work.value=e.work||"";
 fema.value=e.fema||"";
-editingId=id;
-window.scrollTo(0,0);
-};
+}
 
-/* REPORT */
-printBtn.onclick=()=>{
+function closeModal(){
+modal.style.display="none";
+}
 
-const month=reportMonth.value;
-if(!month){alert("Select month");return;}
+/* ==========================
+   SAVE ENTRY (SYNCED)
+========================== */
 
-const entries=allEntries.filter(e=>e.date.startsWith(month));
+function saveEntry(){
 
-let w=window.open("","","width=900,height=700");
+if(!selectedDate) return;
 
-w.document.write(`<h2>Monthly Report ${month}</h2>`);
-
-entries.sort((a,b)=>a.date.localeCompare(b.date));
-
-entries.forEach(e=>{
-w.document.write(`
-<p>
-<strong>${e.date}</strong><br>
-${e.worker}<br>
-Hours: ${e.hours}<br>
-Location: ${e.location||""}<br>
-Work: ${e.work||""}<br>
-FEMA: ${e.fema||"N/A"}
-</p><hr>
-`);
+db.collection("entries").doc(selectedDate).set({
+  location:location.value,
+  work:work.value,
+  fema:fema.value,
+  timestamp:Date.now()
+})
+.then(()=>{
+  closeModal();
+})
+.catch(err=>{
+  alert("Save failed: "+err.message);
 });
 
-w.document.close();
-w.print();
-};
+}
+
+renderCalendar();
 
 </script>
 </body>
