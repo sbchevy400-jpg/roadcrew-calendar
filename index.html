@@ -1,258 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Roadcrew Work Calendar</title>
 
-<script type="module">
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-getFirestore,collection,addDoc,query,orderBy,onSnapshot,
-deleteDoc,doc,updateDoc,getDocs,enableIndexedDbPersistence
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-import {
-getAuth,
-signInWithEmailAndPassword,
-onAuthStateChanged,
-signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-/* FIREBASE */
-const firebaseConfig={
-apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-authDomain:"roadcrew-work-calendar.firebaseapp.com",
-projectId:"roadcrew-work-calendar"
-};
-
-const app=initializeApp(firebaseConfig);
-const db=getFirestore(app);
-const auth=getAuth(app);
-
-enableIndexedDbPersistence(db).catch(()=>{});
-
-const ADMIN_EMAILS=[
-"sbchevy400@gmail.com",
-"kimber0270@gmail.com"
-];
-
-let isAdmin=false;
-
-/* LOGIN */
-window.login=async()=>{
-await signInWithEmailAndPassword(
-auth,
-loginEmail.value,
-loginPassword.value
-);
-};
-
-window.logout=()=>signOut(auth);
-
-/* AUTH STATE */
-onAuthStateChanged(auth,(user)=>{
-
-if(user){
-loginScreen.style.display="none";
-appScreen.style.display="block";
-
-isAdmin=ADMIN_EMAILS.includes(user.email);
-
-if(!isAdmin){
-adminOnly.style.display="none";
-}
-
-startApp();
-
-}else{
-loginScreen.style.display="block";
-appScreen.style.display="none";
-}
-});
-
-/* START APP AFTER LOGIN */
-function startApp(){
-
-const workRef=collection(db,"work");
-
-const q=query(workRef,orderBy("date","asc"));
-
-onSnapshot(q,(snapshot)=>{
-
-entries.innerHTML="";
-calendar.innerHTML="";
-
-let days={};
-
-snapshot.forEach(d=>{
-
-const data=d.data();
-const id=d.id;
-
-if(!days[data.date]) days[data.date]=[];
-days[data.date].push(data);
-
-/* entries */
-entries.innerHTML+=`
-<div class="card">
-<b>${data.worker}</b><br>
-${data.date} — ${data.hours} hrs<br>
-${data.location}<br>
-${data.work}<br>
-FEMA: ${data.fema||"-"}<br><br>
-
-${isAdmin?`
-<button onclick='deleteEntry("${id}")'>Delete</button>
-`:``}
-</div>`;
-});
-
-/* calendar */
-Object.keys(days).sort().forEach(day=>{
-calendar.innerHTML+=`
-<div class="dayBlock">
-<h3>${day}</h3>
-${days[day].map(e=>`
-<div class="calEntry">
-${e.worker}<br>${e.hours} hrs
-</div>`).join("")}
-</div>`;
-});
-
-});
-
-/* ADD ENTRY */
-window.addEntry=async()=>{
-await addDoc(workRef,{
-date:date.value,
-worker:worker.value,
-hours:Number(hours.value),
-location:location.value,
-work:workdone.value,
-fema:fema.value
-});
-};
-
-/* DELETE (ADMIN ONLY) */
-window.deleteEntry=async(id)=>{
-if(!isAdmin) return;
-await deleteDoc(doc(db,"work",id));
-};
-
-/* PRINT REPORT (ADMIN ONLY) */
-window.printMonthlyReport=async()=>{
-
-if(!isAdmin) return;
-
-const month=prompt("Enter month YYYY-MM");
-if(!month)return;
-
-const snap=await getDocs(workRef);
-
-let html="<h1>Monthly Report "+month+"</h1>";
-
-snap.forEach(d=>{
-const data=d.data();
-if(data.date.startsWith(month)){
-html+=`${data.date} - ${data.worker} - ${data.hours} hrs<br>`;
-}
-});
-
-const win=window.open("");
-win.document.write(html);
-win.print();
-};
-
-}
-
-</script>
-
 <style>
-
 body{
-font-family:Arial;
-background:#f4f6f8;
-margin:15px;
-font-size:22px;
+  font-family: Arial, sans-serif;
+  padding:20px;
+  max-width:700px;
+  margin:auto;
+  font-size:22px;
 }
 
-input,select,button{
-width:100%;
-padding:18px;
-margin:10px 0;
-font-size:22px;
+input, select, button{
+  width:100%;
+  padding:18px;
+  margin:10px 0;
+  font-size:22px;
 }
 
-.card,.dayBlock{
-background:white;
-padding:15px;
-margin:12px 0;
-border-radius:12px;
+.card{
+  border:2px solid #ccc;
+  border-radius:10px;
+  padding:15px;
+  margin-top:12px;
 }
-
-.calEntry{
-background:#e9f2ff;
-margin:6px 0;
-padding:10px;
-border-radius:8px;
-}
-
 </style>
-
 </head>
 
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="loginScreen">
+<div id="app"></div>
 
-<h2>Roadcrew Login</h2>
+<script type="module">
 
-<input id="loginEmail" placeholder="Email">
-<input id="loginPassword" type="password" placeholder="Password">
+/* ================= FIREBASE ================= */
 
-<button onclick="login()">Login</button>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  onSnapshot,
+  deleteDoc,
+  doc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-</div>
+const firebaseConfig = {
+  apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+  authDomain: "roadcrew-work-calendar.firebaseapp.com",
+  projectId: "roadcrew-work-calendar",
+  storageBucket: "roadcrew-work-calendar.firebasestorage.app",
+  messagingSenderId: "373087389663",
+  appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+};
 
-<!-- APP -->
-<div id="appScreen" style="display:none">
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-<button onclick="logout()">Logout</button>
+/* ================= USERS ================= */
 
-<h2>Roadcrew Work Calendar</h2>
+const ADMINS = [
+  "sbchevy400@gmail.com",
+  "kimber0270@gmail.com",
+  "ndmorrison71@gmail.com"
+];
 
-<input type="date" id="date">
+const USERS = {
+  "sbchevy400@gmail.com": "admin123",
+  "kimber0270@gmail.com": "admin123",
+  "ndmorrison71@gmail.com": "admin123",
+  worker1: "crew123",
+  worker2: "crew123",
+  worker3: "crew123"
+};
 
-<select id="worker">
-<option>Dump Truck</option>
-<option>Motor Grader Deere</option>
-<option>Motor Grader Gallion</option>
-<option>Backhoe</option>
-<option>Brush Cutter</option>
-</select>
+/* ================= EQUIPMENT ================= */
 
-<input id="hours" placeholder="Hours">
-<input id="location" placeholder="Location">
-<input id="workdone" placeholder="Work">
-<input id="fema" placeholder="FEMA Number">
+const WORKERS = [
+  "Dump Truck",
+  "Motor Grader Deere",
+  "Motor Grader Gallion",
+  "Backhoe",
+  "Brush Cutter"
+];
 
-<button onclick="addEntry()">Add Entry</button>
+/* ================= LOGIN ================= */
 
-<div id="adminOnly">
-<button onclick="printMonthlyReport()">Print Monthly Report</button>
-</div>
+let currentUser = localStorage.getItem("user");
+const appDiv = document.getElementById("app");
 
-<h3>Calendar</h3>
-<div id="calendar"></div>
+function renderLogin(){
+  appDiv.innerHTML = `
+    <h1>Roadcrew Work Calendar</h1>
 
-<h3>Entries</h3>
-<div id="entries"></div>
+    <input id="username" placeholder="Username">
+    <input id="password" type="password" placeholder="Password">
 
-</div>
+    <button onclick="login()">Login</button>
+  `;
+}
+
+window.login = () => {
+  const u = username.value;
+  const p = password.value;
+
+  if(USERS[u] === p){
+    localStorage.setItem("user",u);
+    location.reload();
+  } else {
+    alert("Invalid login");
+  }
+};
+
+window.logout = () => {
+  localStorage.removeItem("user");
+  location.reload();
+};
+
+/* ================= MAIN APP ================= */
+
+function renderApp(){
+
+  appDiv.innerHTML = `
+    <h1>Roadcrew Work Calendar</h1>
+
+    <button onclick="logout()">Logout</button>
+
+    <h2>Add Entry</h2>
+
+    <input type="date" id="date">
+
+    <select id="worker">
+      ${WORKERS.map(w=>`<option>${w}</option>`).join("")}
+    </select>
+
+    <input id="hours" placeholder="Hours Worked">
+    <input id="location" placeholder="Location">
+    <input id="work" placeholder="Work Performed">
+    <input id="fema" placeholder="FEMA Number">
+
+    <button onclick="addEntry()">Save Entry</button>
+
+    <button onclick="window.print()">Print Monthly Report (PDF)</button>
+
+    <h2>Calendar Entries</h2>
+    <div id="entries"></div>
+  `;
+
+  listenEntries();
+}
+
+/* ================= FIRESTORE ================= */
+
+window.addEntry = async () => {
+
+  const entry = {
+    date: date.value,
+    worker: worker.value,
+    hours: hours.value,
+    location: location.value,
+    work: work.value,
+    fema: fema.value
+  };
+
+  if(!entry.date || !entry.hours){
+    alert("Date and Hours required");
+    return;
+  }
+
+  await addDoc(collection(db,"entries"), entry);
+
+  date.value="";
+  hours.value="";
+  location.value="";
+  work.value="";
+  fema.value="";
+};
+
+function listenEntries(){
+
+  onSnapshot(collection(db,"entries"), snap => {
+
+    const entries = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=> new Date(a.date)-new Date(b.date));
+
+    document.getElementById("entries").innerHTML =
+      entries.map(e=>`
+        <div class="card">
+          <b>${e.date}</b><br>
+          ${e.worker}<br>
+          ${e.hours} hrs<br>
+          ${e.location}<br>
+          ${e.work}<br>
+          FEMA: ${e.fema || "-"}
+          ${
+            ADMINS.includes(currentUser)
+            ? `<br><button onclick="deleteEntry('${e.id}')">Delete</button>`
+            : ""
+          }
+        </div>
+      `).join("");
+  });
+}
+
+window.deleteEntry = async(id)=>{
+  await deleteDoc(doc(db,"entries",id));
+};
+
+/* ================= START ================= */
+
+if(!currentUser){
+  renderLogin();
+}else{
+  renderApp();
+}
+
+</script>
 
 </body>
 </html>
