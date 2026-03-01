@@ -1,33 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <title>Roadcrew Work Calendar</title>
 
 <style>
+
 body{
-  font-family: Arial, sans-serif;
-  padding:20px;
-  max-width:700px;
+  font-family:Arial;
+  max-width:900px;
   margin:auto;
+  padding:15px;
   font-size:22px;
 }
 
-input, select, button{
+input,select,button{
   width:100%;
   padding:18px;
-  margin:10px 0;
+  margin:8px 0;
   font-size:22px;
 }
 
-.card{
-  border:2px solid #ccc;
-  border-radius:10px;
-  padding:15px;
-  margin-top:12px;
+.calendar{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:6px;
+  margin-top:15px;
 }
+
+.day{
+  border:2px solid #ccc;
+  min-height:90px;
+  padding:6px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.day:hover{
+  background:#f0f0f0;
+}
+
+.selected{
+  background:#cfe8ff;
+}
+
+.entry{
+  border-top:1px solid #aaa;
+  margin-top:5px;
+  padding-top:5px;
+  font-size:18px;
+}
+
+h1,h2{
+  text-align:center;
+}
+
 </style>
 </head>
 
@@ -39,7 +68,9 @@ input, select, button{
 
 /* ================= FIREBASE ================= */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp } from
+"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
 import {
   getFirestore,
   collection,
@@ -47,177 +78,211 @@ import {
   onSnapshot,
   deleteDoc,
   doc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+} from
+"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-  authDomain: "roadcrew-work-calendar.firebaseapp.com",
-  projectId: "roadcrew-work-calendar",
-  storageBucket: "roadcrew-work-calendar.firebasestorage.app",
-  messagingSenderId: "373087389663",
-  appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+const firebaseConfig={
+  apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+  authDomain:"roadcrew-work-calendar.firebaseapp.com",
+  projectId:"roadcrew-work-calendar",
+  storageBucket:"roadcrew-work-calendar.firebasestorage.app",
+  messagingSenderId:"373087389663",
+  appId:"1:373087389663:web:a55368e82fcd1942ade66a"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
 
 /* ================= USERS ================= */
 
-const ADMINS = [
-  "sbchevy400@gmail.com",
-  "kimber0270@gmail.com",
-  "ndmorrison71@gmail.com"
+const ADMINS=[
+"sbchevy400@gmail.com",
+"kimber0270@gmail.com",
+"ndmorrison71@gmail.com"
 ];
 
-const USERS = {
-  "sbchevy400@gmail.com": "admin123",
-  "kimber0270@gmail.com": "admin123",
-  "ndmorrison71@gmail.com": "admin123",
-  worker1: "crew123",
-  worker2: "crew123",
-  worker3: "crew123"
+const USERS={
+"sbchevy400@gmail.com":"admin123",
+"kimber0270@gmail.com":"admin123",
+"ndmorrison71@gmail.com":"admin123",
+worker1:"crew123",
+worker2:"crew123",
+worker3:"crew123"
 };
 
 /* ================= EQUIPMENT ================= */
 
-const WORKERS = [
-  "Dump Truck",
-  "Motor Grader Deere",
-  "Motor Grader Gallion",
-  "Backhoe",
-  "Brush Cutter"
+const WORKERS=[
+"Dump Truck",
+"Motor Grader Deere",
+"Motor Grader Gallion",
+"Backhoe",
+"Brush Cutter"
 ];
+
+let currentUser=localStorage.getItem("user");
+const appDiv=document.getElementById("app");
+
+let allEntries=[];
+let selectedDate=null;
 
 /* ================= LOGIN ================= */
 
-let currentUser = localStorage.getItem("user");
-const appDiv = document.getElementById("app");
-
 function renderLogin(){
-  appDiv.innerHTML = `
-    <h1>Roadcrew Work Calendar</h1>
+appDiv.innerHTML=`
+<h1>Roadcrew Work Calendar</h1>
 
-    <input id="username" placeholder="Username">
-    <input id="password" type="password" placeholder="Password">
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
 
-    <button onclick="login()">Login</button>
-  `;
+<button onclick="login()">Login</button>
+`;
 }
 
-window.login = () => {
-  const u = username.value;
-  const p = password.value;
-
-  if(USERS[u] === p){
-    localStorage.setItem("user",u);
-    location.reload();
-  } else {
-    alert("Invalid login");
-  }
+window.login=()=>{
+if(USERS[u.value]===p.value){
+localStorage.setItem("user",u.value);
+location.reload();
+}else alert("Invalid login");
 };
 
-window.logout = () => {
-  localStorage.removeItem("user");
-  location.reload();
+window.logout=()=>{
+localStorage.removeItem("user");
+location.reload();
+};
+
+/* ================= CALENDAR ================= */
+
+function buildCalendar(){
+
+const now=new Date();
+const year=now.getFullYear();
+const month=now.getMonth();
+
+const first=new Date(year,month,1);
+const last=new Date(year,month+1,0);
+
+let html="<div class='calendar'>";
+
+for(let i=1;i<=last.getDate();i++){
+
+const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+
+const dayEntries=allEntries.filter(e=>e.date===dateStr);
+
+html+=`
+<div class="day ${selectedDate===dateStr?'selected':''}"
+onclick="selectDay('${dateStr}')">
+<b>${i}</b>
+${dayEntries.map(e=>`<div class="entry">${e.worker} (${e.hours})</div>`).join("")}
+</div>`;
+}
+
+html+="</div>";
+
+return html;
+}
+
+window.selectDay=(date)=>{
+selectedDate=date;
+renderApp();
 };
 
 /* ================= MAIN APP ================= */
 
 function renderApp(){
 
-  appDiv.innerHTML = `
-    <h1>Roadcrew Work Calendar</h1>
+appDiv.innerHTML=`
+<h1>Roadcrew Work Calendar</h1>
 
-    <button onclick="logout()">Logout</button>
+<button onclick="logout()">Logout</button>
 
-    <h2>Add Entry</h2>
+<h2>${selectedDate?`Entries for ${selectedDate}`:"Select a day"}</h2>
 
-    <input type="date" id="date">
+${buildCalendar()}
 
-    <select id="worker">
-      ${WORKERS.map(w=>`<option>${w}</option>`).join("")}
-    </select>
+<h2>Add Entry</h2>
 
-    <input id="hours" placeholder="Hours Worked">
-    <input id="location" placeholder="Location">
-    <input id="work" placeholder="Work Performed">
-    <input id="fema" placeholder="FEMA Number">
+<input type="date" id="date" value="${selectedDate||""}">
 
-    <button onclick="addEntry()">Save Entry</button>
+<select id="worker">
+${WORKERS.map(w=>`<option>${w}</option>`).join("")}
+</select>
 
-    <button onclick="window.print()">Print Monthly Report (PDF)</button>
+<input id="hours" placeholder="Hours">
+<input id="location" placeholder="Location">
+<input id="work" placeholder="Work Performed">
+<input id="fema" placeholder="FEMA Number">
 
-    <h2>Calendar Entries</h2>
-    <div id="entries"></div>
-  `;
+<button onclick="addEntry()">Save Entry</button>
 
-  listenEntries();
+<button onclick="window.print()">Print Monthly Report</button>
+
+<div id="dayEntries"></div>
+`;
+
+renderSelectedDayEntries();
+}
+
+/* ================= ENTRIES ================= */
+
+function renderSelectedDayEntries(){
+
+if(!selectedDate) return;
+
+const list=allEntries
+.filter(e=>e.date===selectedDate);
+
+document.getElementById("dayEntries").innerHTML=
+list.map(e=>`
+<div class="entry">
+${e.worker} — ${e.hours} hrs<br>
+${e.location}<br>
+${e.work}<br>
+FEMA: ${e.fema||"-"}
+${
+ADMINS.includes(currentUser)
+? `<br><button onclick="deleteEntry('${e.id}')">Delete</button>`
+:""
+}
+</div>
+`).join("");
 }
 
 /* ================= FIRESTORE ================= */
 
-window.addEntry = async () => {
+window.addEntry=async()=>{
 
-  const entry = {
-    date: date.value,
-    worker: worker.value,
-    hours: hours.value,
-    location: location.value,
-    work: work.value,
-    fema: fema.value
-  };
-
-  if(!entry.date || !entry.hours){
-    alert("Date and Hours required");
-    return;
-  }
-
-  await addDoc(collection(db,"entries"), entry);
-
-  date.value="";
-  hours.value="";
-  location.value="";
-  work.value="";
-  fema.value="";
+const entry={
+date:date.value,
+worker:worker.value,
+hours:hours.value,
+location:location.value,
+work:work.value,
+fema:fema.value
 };
 
-function listenEntries(){
-
-  onSnapshot(collection(db,"entries"), snap => {
-
-    const entries = snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=> new Date(a.date)-new Date(b.date));
-
-    document.getElementById("entries").innerHTML =
-      entries.map(e=>`
-        <div class="card">
-          <b>${e.date}</b><br>
-          ${e.worker}<br>
-          ${e.hours} hrs<br>
-          ${e.location}<br>
-          ${e.work}<br>
-          FEMA: ${e.fema || "-"}
-          ${
-            ADMINS.includes(currentUser)
-            ? `<br><button onclick="deleteEntry('${e.id}')">Delete</button>`
-            : ""
-          }
-        </div>
-      `).join("");
-  });
+if(!entry.date||!entry.hours){
+alert("Date and hours required");
+return;
 }
 
-window.deleteEntry = async(id)=>{
-  await deleteDoc(doc(db,"entries",id));
+await addDoc(collection(db,"entries"),entry);
 };
+
+window.deleteEntry=async(id)=>{
+await deleteDoc(doc(db,"entries",id));
+};
+
+onSnapshot(collection(db,"entries"),snap=>{
+allEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
+renderApp();
+});
 
 /* ================= START ================= */
 
-if(!currentUser){
-  renderLogin();
-}else{
-  renderApp();
-}
+if(!currentUser) renderLogin();
+else renderApp();
 
 </script>
 
