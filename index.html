@@ -48,12 +48,13 @@ font-weight:bold;
 
 <h2>Ozark Township Roadcrew Calendar</h2>
 
-<!-- Worker selector -->
 <select id="worker">
-<option value="">Select Worker</option>
-<option>Worker 1</option>
-<option>Worker 2</option>
-<option>Worker 3</option>
+<option value="">Select Equipment</option>
+<option>Dump Truck</option>
+<option>Motor Grader Deere</option>
+<option>Motor Grader Gallion</option>
+<option>Backhoe</option>
+<option>Brush Cutter</option>
 </select>
 
 <input id="hours" type="number" placeholder="Hours Worked">
@@ -64,12 +65,7 @@ font-weight:bold;
 
 <button id="saveBtn">Save Work Entry</button>
 
-<div class="totals" id="totalsBox">
-Total Hours:<br>
-Worker 1: 0 hrs<br>
-Worker 2: 0 hrs<br>
-Worker 3: 0 hrs
-</div>
+<div class="totals" id="totalsBox"></div>
 
 <div id="entries"></div>
 
@@ -97,13 +93,12 @@ appId: "1:373087389663:web:a55368e82fcd1942ade66a"
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Save work entry
-
 document.getElementById("saveBtn").onclick = async () => {
 
 const worker = document.getElementById("worker").value;
+
 if(!worker){
-alert("Select a worker first");
+alert("Select equipment first");
 return;
 }
 
@@ -119,8 +114,6 @@ created:Date.now()
 
 };
 
-// Live updates + totals
-
 const q = query(collection(db,"work"), orderBy("created","desc"));
 
 onSnapshot(q,(snapshot)=>{
@@ -128,17 +121,34 @@ onSnapshot(q,(snapshot)=>{
 const entries = document.getElementById("entries");
 entries.innerHTML="";
 
-let totals = {
-"Worker 1":0,
-"Worker 2":0,
-"Worker 3":0
+let equipmentTotals = {
+"Dump Truck":0,
+"Motor Grader Deere":0,
+"Motor Grader Gallion":0,
+"Backhoe":0,
+"Brush Cutter":0
 };
+
+let femaTotals = {};
+let totalFemaHours = 0;
 
 snapshot.forEach(doc=>{
 const d = doc.data();
+const hrs = Number(d.hours || 0);
 
-if(totals[d.worker] !== undefined){
-totals[d.worker] += Number(d.hours || 0);
+// Equipment totals
+if(equipmentTotals[d.worker] !== undefined){
+equipmentTotals[d.worker] += hrs;
+}
+
+// FEMA totals
+if(d.fema && d.fema.trim() !== ""){
+totalFemaHours += hrs;
+
+if(!femaTotals[d.fema]){
+femaTotals[d.fema] = 0;
+}
+femaTotals[d.fema] += hrs;
 }
 
 entries.innerHTML += `
@@ -151,13 +161,26 @@ FEMA: ${d.fema}
 </div>`;
 });
 
-// Update totals display
+// FEMA breakdown display
+let femaHTML = "";
+for(const num in femaTotals){
+femaHTML += `${num}: ${femaTotals[num]} hrs<br>`;
+}
 
 document.getElementById("totalsBox").innerHTML = `
-Total Hours:<br>
-Worker 1: ${totals["Worker 1"]} hrs<br>
-Worker 2: ${totals["Worker 2"]} hrs<br>
-Worker 3: ${totals["Worker 3"]} hrs`;
+<b>Equipment Totals</b><br><br>
+Dump Truck: ${equipmentTotals["Dump Truck"]} hrs<br>
+Motor Grader Deere: ${equipmentTotals["Motor Grader Deere"]} hrs<br>
+Motor Grader Gallion: ${equipmentTotals["Motor Grader Gallion"]} hrs<br>
+Backhoe: ${equipmentTotals["Backhoe"]} hrs<br>
+Brush Cutter: ${equipmentTotals["Brush Cutter"]} hrs
+<br><br>
+<b>FEMA Totals</b><br>
+Total FEMA Hours: ${totalFemaHours} hrs
+<br><br>
+<b>FEMA Breakdown</b><br>
+${femaHTML || "No FEMA work logged"}
+`;
 
 });
 
