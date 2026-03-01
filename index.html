@@ -1,29 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Roadcrew Work Calendar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadcrew Work Calendar</title>
+
 <style>
-body {
-  font-family: Arial;
-  text-align: center;
-  background:#f4f6f8;
+body{
+font-family:Arial;
+background:#f4f6f8;
+text-align:center;
+padding:20px;
 }
-h1 { color:#2c3e50; }
+
+input, select{
+margin:5px;
+padding:8px;
+width:80%;
+max-width:300px;
+}
+
+button{
+padding:10px;
+background:#2c3e50;
+color:white;
+border:none;
+margin-top:10px;
+}
+
+.entry{
+background:white;
+margin:10px;
+padding:10px;
+border-radius:8px;
+}
 </style>
 </head>
 
 <body>
-<h1>Ozark Township Roadcrew Calendar</h1>
 
-<p>Administrator: sbchevy400@gmail.com</p>
+<h2>Ozark Township Roadcrew Calendar</h2>
 
-<input type="date">
-<br><br>
-<textarea placeholder="Work notes..." rows="4" cols="30"></textarea>
-<br><br>
-<button>Save Entry</button>
+<input id="worker" placeholder="Worker Name">
+<input id="hours" type="number" placeholder="Hours Worked">
+<input id="location" placeholder="Work Location">
+<input id="workdone" placeholder="Work Completed">
+<input id="fema" placeholder="FEMA Number">
+<input id="date" type="date">
 
-<p>Calendar system coming online ✅</p>
+<br>
+<button onclick="saveWork()">Save Work Entry</button>
+
+<div id="entries"></div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+getFirestore,
+collection,
+addDoc,
+onSnapshot,
+query,
+orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
+authDomain: "roadcrew-work-calendar.firebaseapp.com",
+projectId: "roadcrew-work-calendar",
+storageBucket: "roadcrew-work-calendar.firebasestorage.app",
+messagingSenderId: "373087389663",
+appId: "1:373087389663:web:a55368e82fcd1942ade66a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.saveWork = async function(){
+
+await addDoc(collection(db,"work"),{
+worker:worker.value,
+hours:hours.value,
+location:location.value,
+work:workdone.value,
+fema:fema.value,
+date:date.value,
+created:Date.now()
+});
+
+}
+
+const q = query(collection(db,"work"), orderBy("created","desc"));
+
+onSnapshot(q,(snapshot)=>{
+entries.innerHTML="";
+snapshot.forEach(doc=>{
+const d = doc.data();
+entries.innerHTML += `
+<div class="entry">
+<b>${d.worker}</b><br>
+${d.date} — ${d.hours} hrs<br>
+${d.location}<br>
+${d.work}<br>
+FEMA: ${d.fema}
+</div>`;
+});
+});
+
+</script>
+
 </body>
 </html>
