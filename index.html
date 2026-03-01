@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Roadcrew Work Calendar</title>
 
@@ -11,27 +12,26 @@ background:#f4f6f8;
 text-align:center;
 padding:20px;
 }
-
-input, select{
-margin:5px;
-padding:8px;
-width:80%;
-max-width:300px;
-}
-
-button{
+input{
+display:block;
+margin:8px auto;
 padding:10px;
+width:90%;
+max-width:320px;
+}
+button{
+padding:12px;
 background:#2c3e50;
 color:white;
 border:none;
-margin-top:10px;
+border-radius:6px;
 }
-
 .entry{
 background:white;
-margin:10px;
+margin:10px auto;
 padding:10px;
 border-radius:8px;
+max-width:350px;
 }
 </style>
 </head>
@@ -47,8 +47,7 @@ border-radius:8px;
 <input id="fema" placeholder="FEMA Number">
 <input id="date" type="date">
 
-<br>
-<button onclick="saveWork()">Save Work Entry</button>
+<button id="saveBtn">Save Work Entry</button>
 
 <div id="entries"></div>
 
@@ -76,23 +75,24 @@ appId: "1:373087389663:web:a55368e82fcd1942ade66a"
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-window.saveWork = async function(){
+document.getElementById("saveBtn").onclick = async () => {
 
 await addDoc(collection(db,"work"),{
-worker:worker.value,
-hours:hours.value,
-location:location.value,
-work:workdone.value,
-fema:fema.value,
-date:date.value,
+worker:document.getElementById("worker").value,
+hours:document.getElementById("hours").value,
+location:document.getElementById("location").value,
+work:document.getElementById("workdone").value,
+fema:document.getElementById("fema").value,
+date:document.getElementById("date").value,
 created:Date.now()
 });
 
-}
+};
 
 const q = query(collection(db,"work"), orderBy("created","desc"));
 
 onSnapshot(q,(snapshot)=>{
+const entries = document.getElementById("entries");
 entries.innerHTML="";
 snapshot.forEach(doc=>{
 const d = doc.data();
