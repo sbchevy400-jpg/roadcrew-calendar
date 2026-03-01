@@ -1,248 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Roadcrew Work Calendar</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<title>Mobile Friendly Project</title>
 
 <style>
 body{
-  font-family:Arial;
-  background:#f2f4f7;
-  margin:15px;
-  font-size:22px;
+    font-family: Arial, sans-serif;
+    margin:0;
+    background:#111;
+    color:white;
+    text-align:center;
 }
 
-h2{margin-bottom:10px}
+header{
+    padding:15px;
+    background:#1f1f1f;
+    font-size:20px;
+}
 
-.controls{
-  margin-bottom:10px;
+.container{
+    padding:20px;
 }
 
 button{
-  font-size:20px;
-  padding:8px 12px;
+    width:100%;
+    max-width:300px;
+    padding:15px;
+    margin:10px auto;
+    font-size:18px;
+    border:none;
+    border-radius:10px;
+    background:#4CAF50;
+    color:white;
 }
 
-.calendar{
-  display:grid;
-  grid-template-columns:repeat(7,1fr);
-  gap:6px;
+button:active{
+    transform:scale(0.96);
 }
 
-.day{
-  background:white;
-  border:1px solid #bbb;
-  min-height:120px;
-  padding:6px;
-}
-
-.day:hover{
-  background:#eef5ff;
-}
-
-.entry{
-  background:#dbe9ff;
-  margin-top:5px;
-  padding:4px;
-  font-size:16px;
-}
-
-.modal{
-  display:none;
-  position:fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background:#0008;
-}
-
-.modal-content{
-  background:white;
-  margin:8% auto;
-  padding:20px;
-  width:320px;
-}
-
-input, textarea{
-  width:100%;
-  font-size:18px;
-  margin-bottom:10px;
+.card{
+    background:#222;
+    padding:15px;
+    margin-top:15px;
+    border-radius:10px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>Roadcrew Work Calendar</h2>
+<header>
+🚀 Simple Mobile App
+</header>
 
-<div class="controls">
-<button onclick="changeMonth(-1)">◀</button>
-<span id="monthLabel"></span>
-<button onclick="changeMonth(1)">▶</button>
-</div>
+<div class="container">
 
-<div id="calendar" class="calendar"></div>
+<button onclick="addItem()">Tap Me</button>
 
-<!-- Entry Modal -->
-<div id="modal" class="modal">
-<div class="modal-content">
+<div id="list"></div>
 
-<h3 id="modalDate"></h3>
-
-<input id="location" placeholder="Location">
-<textarea id="work" placeholder="Work Performed"></textarea>
-<input id="fema" placeholder="FEMA Number">
-
-<button onclick="saveEntry()">Save Entry</button>
-<button onclick="closeModal()">Cancel</button>
-
-</div>
 </div>
 
 <script>
 
-/* ======================
-   🔥 REPLACE WITH YOUR FIREBASE CONFIG
-====================== */
+// VERY LIGHTWEIGHT JS
+let count = 0;
 
-const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "PASTE_YOUR_AUTHDOMAIN",
-  projectId: "PASTE_YOUR_PROJECTID",
-  storageBucket: "PASTE_YOUR_STORAGEBUCKET",
-  messagingSenderId: "PASTE_YOUR_SENDERID",
-  appId: "PASTE_YOUR_APPID"
-};
+function addItem(){
+    count++;
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+    const div = document.createElement("div");
+    div.className = "card";
+    div.textContent = "Item #" + count;
 
-/* ======================
-   APP STATE
-====================== */
-
-let entries = {};
-let selectedDate=null;
-let currentDate=new Date();
-let currentMonth=currentDate.getMonth();
-let currentYear=currentDate.getFullYear();
-
-/* ======================
-   LIVE SYNC LISTENER
-====================== */
-
-db.collection("entries").onSnapshot(snapshot=>{
-  entries={};
-  snapshot.forEach(doc=>{
-    entries[doc.id]=doc.data();
-  });
-  renderCalendar();
-});
-
-/* ======================
-   CALENDAR RENDER
-====================== */
-
-function renderCalendar(){
-
-const cal=document.getElementById("calendar");
-cal.innerHTML="";
-
-document.getElementById("monthLabel").innerText=
-new Date(currentYear,currentMonth)
-.toLocaleString("default",{month:"long",year:"numeric"});
-
-const firstDay=new Date(currentYear,currentMonth,1).getDay();
-const days=new Date(currentYear,currentMonth+1,0).getDate();
-
-for(let i=0;i<firstDay;i++){
-  cal.appendChild(document.createElement("div"));
+    document.getElementById("list").prepend(div);
 }
-
-for(let d=1; d<=days; d++){
-
-  const key=`${currentYear}-${currentMonth+1}-${d}`;
-  const entry=entries[key];
-
-  const div=document.createElement("div");
-  div.className="day";
-  div.onclick=()=>openModal(key);
-
-  div.innerHTML=`<b>${d}</b>`;
-
-  if(entry){
-    div.innerHTML+=`
-      <div class="entry">
-        ${entry.location || ""}
-      </div>`;
-  }
-
-  cal.appendChild(div);
-}
-}
-
-function changeMonth(n){
-currentMonth+=n;
-
-if(currentMonth<0){currentMonth=11;currentYear--;}
-if(currentMonth>11){currentMonth=0;currentYear++;}
-
-renderCalendar();
-}
-
-/* ======================
-   MODAL
-====================== */
-
-function openModal(date){
-
-selectedDate=date;
-const e=entries[date]||{};
-
-modal.style.display="block";
-modalDate.innerText=date;
-
-location.value=e.location||"";
-work.value=e.work||"";
-fema.value=e.fema||"";
-}
-
-function closeModal(){
-modal.style.display="none";
-}
-
-/* ======================
-   SAVE ENTRY
-====================== */
-
-function saveEntry(){
-
-if(!selectedDate){
-  alert("No date selected");
-  return;
-}
-
-db.collection("entries").doc(selectedDate).set({
-  location:location.value,
-  work:work.value,
-  fema:fema.value,
-  updated:Date.now()
-})
-.then(()=>{
-  closeModal();
-})
-.catch(err=>{
-  alert("Save failed: "+err.message);
-});
-
-}
-
-renderCalendar();
 
 </script>
 
