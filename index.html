@@ -2,332 +2,234 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Roadcrew Work Calendar</title>
 
 <style>
 body{
 font-family:Arial;
-max-width:900px;
-margin:auto;
-padding:15px;
 font-size:22px;
+margin:10px;
 }
 
 input,select,button{
-width:100%;
-padding:18px;
-margin:8px 0;
 font-size:22px;
+padding:10px;
+margin:6px 0;
+width:100%;
 }
 
 .calendar{
 display:grid;
 grid-template-columns:repeat(7,1fr);
 gap:6px;
-margin-top:15px;
 }
 
 .day{
-border:2px solid #ccc;
+border:1px solid #333;
 min-height:90px;
 padding:6px;
-border-radius:8px;
 cursor:pointer;
 }
 
-.selected{background:#cfe8ff;}
+.day strong{
+display:block;
+font-size:26px;
+}
 
 .entry{
-border-top:1px solid #aaa;
-margin-top:5px;
-padding-top:5px;
 font-size:18px;
+margin-top:4px;
 }
+
+.hidden{display:none;}
 </style>
 </head>
 
 <body>
 
-<div id="app"></div>
+<h2>Roadcrew Work Calendar</h2>
 
-<script type="module">
+<!-- LOGIN -->
+<div id="login">
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
 
-import { initializeApp } from
-"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+<!-- APP -->
+<div id="app" class="hidden">
 
-import {
-getFirestore,
-collection,
-addDoc,
-onSnapshot,
-deleteDoc,
-doc
-} from
-"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+<h3>Add Work Entry</h3>
 
-/* ================= FIREBASE ================= */
+<input type="date" id="date">
 
-const firebaseConfig={
-apiKey:"AIzaSyArv5V1_8ZQoN3fe3OJ35Fl-7PbEKzkDYo",
-authDomain:"roadcrew-work-calendar.firebaseapp.com",
-projectId:"roadcrew-work-calendar"
-};
+<select id="worker">
+<option>Dump Truck</option>
+<option>Motor Grader Deere</option>
+<option>Motor Grader Gallion</option>
+<option>Backhoe</option>
+<option>Brush Cutter</option>
+</select>
 
-const app=initializeApp(firebaseConfig);
-const db=getFirestore(app);
+<input id="hours" type="number" placeholder="Hours Worked">
+<input id="location" placeholder="Location Worked">
+<input id="workdone" placeholder="Work Performed">
+<input id="fema" placeholder="FEMA Number (optional)">
 
-/* ================= USERS ================= */
+<button onclick="saveEntry()">Save Entry</button>
 
-const ADMINS=[
+<hr>
+
+<h3>Calendar</h3>
+<div id="calendar" class="calendar"></div>
+
+<hr>
+
+<h3>Monthly Report</h3>
+
+<input type="month" id="reportMonth">
+<button onclick="printReport()">Print Monthly Report</button>
+
+</div>
+
+<script>
+const admins=[
 "sbchevy400@gmail.com",
 "kimber0270@gmail.com",
 "ndmorrison71@gmail.com"
 ];
 
-const USERS={
-"sbchevy400@gmail.com":"admin123",
-"kimber0270@gmail.com":"admin123",
-"ndmorrison71@gmail.com":"admin123",
-worker1:"crew123",
-worker2:"crew123",
-worker3:"crew123"
-};
-
-const WORKERS=[
-"Dump Truck",
-"Motor Grader Deere",
-"Motor Grader Gallion",
-"Backhoe",
-"Brush Cutter"
-];
-
-let currentUser=localStorage.getItem("user");
-const appDiv=document.getElementById("app");
-
-let allEntries=[];
-let selectedDate=null;
-
-/* ================= LOGIN ================= */
-
-function renderLogin(){
-appDiv.innerHTML=`
-<h1>Roadcrew Work Calendar</h1>
-<input id="u" placeholder="Username">
-<input id="p" type="password" placeholder="Password">
-<button id="loginBtn">Login</button>
-`;
-
-loginBtn.onclick=()=>{
-if(USERS[u.value]===p.value){
-localStorage.setItem("user",u.value);
-location.reload();
-}else alert("Invalid login");
-};
+function login(){
+let email=document.getElementById("email").value;
+if(admins.includes(email)){
+document.getElementById("login").classList.add("hidden");
+document.getElementById("app").classList.remove("hidden");
+buildCalendar();
+}else{
+alert("Access denied");
+}
 }
 
-function logout(){
-localStorage.removeItem("user");
-location.reload();
+function getEntries(){
+return JSON.parse(localStorage.getItem("entries")||"[]");
 }
 
-/* ================= CALENDAR ================= */
+function saveEntries(data){
+localStorage.setItem("entries",JSON.stringify(data));
+}
+
+function saveEntry(){
+
+const entry={
+date:date.value,
+worker:worker.value,
+hours:Number(hours.value),
+location:location.value,
+work:workdone.value,
+fema:fema.value
+};
+
+let entries=getEntries();
+entries.push(entry);
+saveEntries(entries);
+
+alert("Saved!");
+buildCalendar();
+}
 
 function buildCalendar(){
 
-const now=new Date();
-const year=now.getFullYear();
-const month=now.getMonth();
-const last=new Date(year,month+1,0);
+const cal=document.getElementById("calendar");
+cal.innerHTML="";
 
-let html="<div class='calendar'>";
+const today=new Date();
+const year=today.getFullYear();
+const month=today.getMonth();
 
-for(let i=1;i<=last.getDate();i++){
+const firstDay=new Date(year,month,1).getDay();
+const days=new Date(year,month+1,0).getDate();
 
-const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-
-const dayEntries=allEntries.filter(e=>e.date===dateStr);
-
-html+=`
-<div class="day ${selectedDate===dateStr?'selected':''}"
-data-date="${dateStr}">
-<b>${i}</b>
-${dayEntries.map(e=>`<div class="entry">${e.worker} (${e.hours})</div>`).join("")}
-</div>`;
+for(let i=0;i<firstDay;i++){
+cal.innerHTML+="<div></div>";
 }
 
-html+="</div>";
-return html;
-}
+const entries=getEntries();
 
-/* ================= MAIN APP ================= */
+for(let d=1;d<=days;d++){
 
-function renderApp(){
+const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 
-appDiv.innerHTML=`
-<h1>Roadcrew Work Calendar</h1>
-<button id="logoutBtn">Logout</button>
+const dayEntries=entries.filter(e=>e.date===dateStr);
 
-${buildCalendar()}
+let html=`<div class="day"><strong>${d}</strong>`;
 
-<h2>Add Entry</h2>
-
-<input type="date" id="dateInput" value="${selectedDate||""}">
-
-<select id="workerInput">
-${WORKERS.map(w=>`<option>${w}</option>`).join("")}
-</select>
-
-<input id="hoursInput" placeholder="Hours">
-<input id="locationInput" placeholder="Location">
-<input id="workInput" placeholder="Work Performed">
-<input id="femaInput" placeholder="FEMA Number">
-
-<button id="saveBtn">Save Entry</button>
-
-<h2>Monthly Report</h2>
-
-<select id="reportMonth">
-${[...Array(12)].map((_,i)=>
-`<option value="${i}">${new Date(0,i).toLocaleString('default',{month:'long'})}</option>`
-).join("")}
-</select>
-
-<input id="reportYear" type="number" value="${new Date().getFullYear()}">
-
-<button id="printBtn">Print FEMA Monthly Report</button>
-
-<div id="dayEntries"></div>
-`;
-
-logoutBtn.onclick=logout;
-saveBtn.onclick=addEntry;
-printBtn.onclick=printMonthlyReport;
-
-document.querySelectorAll(".day").forEach(d=>{
-d.onclick=()=>{
-selectedDate=d.dataset.date;
-renderApp();
-};
+dayEntries.forEach(e=>{
+html+=`<div class="entry">${e.worker} (${e.hours}h)</div>`;
 });
 
-renderSelectedEntries();
+html+="</div>";
+cal.innerHTML+=html;
+}
 }
 
-/* ================= SAVE ENTRY ================= */
+function printReport(){
 
-async function addEntry(){
+const monthValue=document.getElementById("reportMonth").value;
 
-const entry={
-date:dateInput.value,
-worker:workerInput.value,
-hours:Number(hoursInput.value),
-location:locationInput.value,
-work:workInput.value,
-fema:femaInput.value
-};
-
-if(!entry.date||!entry.hours){
-alert("Date and hours required");
+if(!monthValue){
+alert("Select a month first");
 return;
 }
 
-await addDoc(collection(db,"entries"),entry);
-}
+const entries=getEntries().filter(e=>e.date.startsWith(monthValue));
 
-/* ================= FEMA REPORT ================= */
-
-function printMonthlyReport(){
-
-const month=parseInt(reportMonth.value);
-const year=parseInt(reportYear.value);
-
-const filtered=allEntries.filter(e=>{
-const d=new Date(e.date);
-return d.getMonth()===month && d.getFullYear()===year;
-});
-
+let femaTotals={};
 let dailyTotals={};
-let equipmentTotals={};
-let femaTotal=0;
-let grandTotal=0;
 
-filtered.forEach(e=>{
+entries.forEach(e=>{
+if(!dailyTotals[e.date]) dailyTotals[e.date]=[];
+dailyTotals[e.date].push(e);
 
-grandTotal+=e.hours;
-
-if(e.fema) femaTotal+=e.hours;
-
-dailyTotals[e.date]=(dailyTotals[e.date]||0)+e.hours;
-
-equipmentTotals[e.worker]=(equipmentTotals[e.worker]||0)+e.hours;
+if(e.fema){
+if(!femaTotals[e.fema]) femaTotals[e.fema]=0;
+femaTotals[e.fema]+=e.hours;
+}
 });
 
-let html=`
-<h1>Roadcrew FEMA Monthly Report</h1>
-<h2>${new Date(year,month).toLocaleString('default',{month:'long'})} ${year}</h2>
-`;
+let report=window.open("","","width=900,height=700");
 
-Object.keys(dailyTotals).sort().forEach(day=>{
-html+=`<p><b>${day}</b> — Total Hours: ${dailyTotals[day]}</p>`;
-});
+report.document.write(`<h2>Roadcrew Monthly Report - ${monthValue}</h2>`);
 
-html+=`<hr><h2>Equipment Totals</h2>`;
+Object.keys(dailyTotals).sort().forEach(date=>{
 
-Object.keys(equipmentTotals).forEach(eq=>{
-html+=`<p>${eq}: ${equipmentTotals[eq]} hrs</p>`;
-});
+report.document.write(`<h3>${date}</h3>`);
 
-html+=`
+dailyTotals[date].forEach(e=>{
+report.document.write(`
+<p>
+<strong>${e.worker}</strong><br>
+Hours: ${e.hours}<br>
+Location: ${e.location}<br>
+Work Performed: ${e.work}<br>
+FEMA #: ${e.fema||"N/A"}
+</p>
 <hr>
-<h2>Totals Summary</h2>
-<p><b>FEMA Eligible Hours:</b> ${femaTotal}</p>
-<p><b>Grand Total Hours:</b> ${grandTotal}</p>
-`;
-
-const win=window.open("","","width=800,height=900");
-win.document.write(html);
-win.document.close();
-win.print();
-}
-
-/* ================= DAY VIEW ================= */
-
-function renderSelectedEntries(){
-if(!selectedDate) return;
-
-const list=allEntries.filter(e=>e.date===selectedDate);
-
-dayEntries.innerHTML=list.map(e=>`
-<div class="entry">
-${e.worker} — ${e.hours} hrs<br>
-${e.location}<br>
-${e.work}<br>
-FEMA: ${e.fema||"-"}
-${
-ADMINS.includes(currentUser)
-? `<br><button onclick="deleteEntry('${e.id}')">Delete</button>`
-:""
-}
-</div>`).join("");
-}
-
-window.deleteEntry=async(id)=>{
-await deleteDoc(doc(db,"entries",id));
-};
-
-/* ================= LIVE SYNC ================= */
-
-onSnapshot(collection(db,"entries"),snap=>{
-allEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
-renderApp();
+`);
 });
 
-/* ================= START ================= */
+});
 
-if(!currentUser) renderLogin();
-else renderApp();
+report.document.write("<h2>FEMA Totals</h2>");
 
+Object.keys(femaTotals).forEach(f=>{
+report.document.write(`<p>FEMA ${f}: ${femaTotals[f]} hours</p>`);
+});
+
+report.document.close();
+report.print();
+}
 </script>
 
 </body>
